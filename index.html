@@ -1,0 +1,2016 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TDS BB+ Tech Spec V2 — Complete Implementation Guide</title>
+    <style>
+      :root {
+        --fg: #1a1a2e;
+        --muted: #64748b;
+        --bg: #ffffff;
+        --code-bg: #f8fafc;
+        --border: #e2e8f0;
+        --accent: #3b82f6;
+        --accent-dark: #1d4ed8;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --error: #ef4444;
+        --section-bg: #f1f5f9;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 40px 20px;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        line-height: 1.6;
+        font-size: 15px;
+      }
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      h1, h2, h3, h4 {
+        margin: 0 0 16px 0;
+        font-weight: 600;
+      }
+      h1 {
+        font-size: 32px;
+        letter-spacing: -0.03em;
+        color: var(--accent-dark);
+        border-bottom: 3px solid var(--accent);
+        padding-bottom: 16px;
+      }
+      h2 {
+        margin-top: 48px;
+        font-size: 24px;
+        color: var(--accent-dark);
+        border-bottom: 2px solid var(--border);
+        padding-bottom: 12px;
+      }
+      h3 {
+        margin-top: 32px;
+        font-size: 18px;
+        color: var(--fg);
+      }
+      h4 {
+        margin-top: 24px;
+        font-size: 16px;
+        color: var(--muted);
+      }
+      p { margin: 12px 0; }
+      .muted { color: var(--muted); }
+      .badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 12px;
+        vertical-align: middle;
+      }
+      .badge-final { background: var(--success); color: white; }
+      .badge-wip { background: var(--warning); color: white; }
+      .callout {
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--accent);
+        background: var(--code-bg);
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+      .callout-warning {
+        border-left-color: var(--warning);
+        background: #fffbeb;
+      }
+      .callout-success {
+        border-left-color: var(--success);
+        background: #ecfdf5;
+      }
+      .callout-title {
+        font-weight: 600;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      code, pre {
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-size: 13px;
+      }
+      code {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      pre {
+        background: #1e293b;
+        color: #e2e8f0;
+        padding: 20px;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 16px 0;
+      }
+      pre code {
+        background: none;
+        border: none;
+        padding: 0;
+        color: inherit;
+      }
+      ul, ol { margin: 12px 0; padding-left: 24px; }
+      li { margin: 8px 0; }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        font-size: 14px;
+      }
+      th, td {
+        border: 1px solid var(--border);
+        padding: 12px 16px;
+        text-align: left;
+      }
+      th {
+        background: var(--section-bg);
+        font-weight: 600;
+      }
+      tr:hover { background: var(--code-bg); }
+      .toc {
+        background: var(--section-bg);
+        padding: 24px;
+        border-radius: 12px;
+        margin: 24px 0;
+      }
+      .toc-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+      }
+      .toc-list {
+        column-count: 2;
+        column-gap: 40px;
+      }
+      .toc a {
+        display: block;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .flow-diagram {
+        background: var(--section-bg);
+        padding: 24px;
+        border-radius: 12px;
+        margin: 20px 0;
+        text-align: center;
+      }
+      .flow-step {
+        display: inline-block;
+        background: white;
+        border: 2px solid var(--accent);
+        padding: 12px 20px;
+        border-radius: 8px;
+        margin: 8px;
+        font-weight: 500;
+      }
+      .flow-arrow {
+        display: inline-block;
+        color: var(--accent);
+        font-size: 20px;
+        margin: 0 8px;
+      }
+      .section-card {
+        background: var(--section-bg);
+        border-radius: 12px;
+        padding: 24px;
+        margin: 20px 0;
+      }
+      .meta-info {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin: 24px 0;
+      }
+      .meta-item {
+        background: var(--section-bg);
+        padding: 16px;
+        border-radius: 8px;
+      }
+      .meta-label {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .meta-value {
+        font-size: 18px;
+        font-weight: 600;
+        margin-top: 4px;
+      }
+      .highlight {
+        background: linear-gradient(120deg, #fef3c7 0%, #fef3c7 100%);
+        padding: 2px 4px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>
+        TDS BB+ Tech Spec V2
+        <span class="badge badge-final">FINAL</span>
+      </h1>
+      
+      <div class="meta-info">
+        <div class="meta-item">
+          <div class="meta-label">Version</div>
+          <div class="meta-value">2.0</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Last Updated</div>
+          <div class="meta-value">January 23, 2026</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Status</div>
+          <div class="meta-value" style="color: var(--success);">Implementation Ready</div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-title">📋 Executive Summary</div>
+        <p>This tech spec documents the implementation of TDS (Tax Deducted at Source) payment and filing functionality for BB+ merchants within the Razorpay Payouts service. The feature enables merchants to:</p>
+        <ul>
+          <li>Deduct TDS automatically when making vendor payouts</li>
+          <li>File TDS returns (Form 26Q) quarterly via Compliance Engine 2.0</li>
+          <li>Import historical TDS data for mid-quarter onboarding</li>
+        </ul>
+        <p><strong>Key Architectural Decisions:</strong></p>
+        <ul>
+          <li>TDS calculation and entity creation are handled by <span class="highlight">Compliance Engine 2.0</span></li>
+          <li>The Payouts service acts as an orchestrator, calling CE2 APIs at payout time and notifying on status changes via an <span class="highlight">async queue-based architecture</span></li>
+          <li><span class="highlight">No schema changes</span> to core payouts table - TDS metadata stored in existing <code>payout_meta_permanent</code> table</li>
+          <li>TDS settings (payment/filing enablement) leverage the existing <span class="highlight">Business Profile / Tax Details</span> section in API settings</li>
+          <li>A new <span class="highlight">Merchant Info Aggregator API</span> will combine settings data with data from other services for Compliance Engine filing requests</li>
+        </ul>
+      </div>
+
+      <div class="toc">
+        <div class="toc-title">Table of Contents</div>
+        <div class="toc-list">
+          <a href="#overview">1. Feature Overview</a>
+          <a href="#settings">2. TDS Settings & Enablement</a>
+          <a href="#bulk-import">3. Historical Data Bulk Import</a>
+          <a href="#payout-flow">4. Payout Flow with TDS</a>
+          <a href="#architecture">5. System Architecture</a>
+          <a href="#data-models">6. Data Models</a>
+          <a href="#api-contracts">7. API Contracts</a>
+          <a href="#module-structure">8. Payouts Codebase Implementation</a>
+          <a href="#error-handling">9. Error Handling</a>
+          <a href="#rollout">10. Migration & Rollout Plan</a>
+          <a href="#open-questions">11. Open Questions</a>
+          <a href="#resolved">12. Resolved Decisions</a>
+        </div>
+      </div>
+
+      <!-- Section 1: Feature Overview -->
+      <h2 id="overview">1. Feature Overview</h2>
+      
+      <h3>1.1 What is TDS BB+?</h3>
+      <p>TDS BB+ enables Razorpay Business Banking (BB+) merchants to manage their TDS (Tax Deducted at Source) obligations directly within the payout workflow. When a merchant makes a payment to a vendor, TDS is automatically calculated based on the selected category, deducted from the gross amount, and recorded for quarterly filing.</p>
+
+      <h3>1.2 Key Features</h3>
+      <table>
+        <tr>
+          <th>Feature</th>
+          <th>Description</th>
+          <th>Owner</th>
+        </tr>
+        <tr>
+          <td><strong>TDS Payment</strong></td>
+          <td>Calculate and deduct TDS during payout creation</td>
+          <td>Payouts Service</td>
+        </tr>
+        <tr>
+          <td><strong>TDS Filing</strong></td>
+          <td>Generate Form 26Q for quarterly TDS filing</td>
+          <td>Compliance Engine 2.0</td>
+        </tr>
+        <tr>
+          <td><strong>LDC Support</strong></td>
+          <td>Lower Deduction Certificate application for reduced rates</td>
+          <td>Compliance Engine 2.0</td>
+        </tr>
+        <tr>
+          <td><strong>Bulk Import</strong></td>
+          <td>Import historical TDS data for mid-quarter onboarding</td>
+          <td>Payouts Service</td>
+        </tr>
+      </table>
+
+      <h3>1.3 User Journey Overview</h3>
+      <div class="flow-diagram">
+        <div class="flow-step">Enable TDS Payment</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Enable TDS Filing</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Import Historical Data (if mid-quarter)</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Create Payout with TDS</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">TDS Auto-Filed Quarterly</div>
+      </div>
+
+      <!-- Section 2: TDS Settings -->
+      <h2 id="settings">2. TDS Settings & Enablement</h2>
+
+      <h3>2.1 Merchant-Level Settings</h3>
+      <p>Two settings control TDS functionality at the merchant level:</p>
+
+      <table>
+        <tr>
+          <th>Setting</th>
+          <th>Config Key</th>
+          <th>Description</th>
+          <th>Dependency</th>
+        </tr>
+        <tr>
+          <td><strong>TDS Payment Enabled</strong></td>
+          <td><code>tds_payment_enabled</code></td>
+          <td>Enables the "Add TDS" option in payout workflow</td>
+          <td>None</td>
+        </tr>
+        <tr>
+          <td><strong>TDS Filing Enabled</strong></td>
+          <td><code>tds_filing_enabled</code></td>
+          <td>Enables quarterly TDS filing via Compliance Engine</td>
+          <td>Requires TDS Payment to be enabled first</td>
+        </tr>
+        <tr>
+          <td><strong>Filing Onboarding Date</strong></td>
+          <td><code>tds_filing_onboarding_date</code></td>
+          <td>Date when merchant enabled TDS filing</td>
+          <td>Set when TDS Filing is enabled</td>
+        </tr>
+      </table>
+
+      <h3>2.2 Settings Storage: Business Profile / Tax Details Approach</h3>
+      <p>TDS settings will leverage the existing <strong>Business Profile / Tax Details</strong> section available via the API settings infrastructure. This provides a unified location for storing merchant tax-related configuration.</p>
+
+      <div class="callout callout-success">
+        <div class="callout-title">✅ Why Business Profile / Tax Details?</div>
+        <ul>
+          <li><strong>Existing Infrastructure:</strong> Reuses established settings management system</li>
+          <li><strong>Tax Context:</strong> TDS configuration naturally belongs with other tax details (PAN, TAN, GST)</li>
+          <li><strong>Unified Access:</strong> Single source for all merchant tax and compliance information</li>
+          <li><strong>Already Available:</strong> Business profile data is already accessible via API</li>
+        </ul>
+      </div>
+
+      <h4>Settings Location</h4>
+      <pre><code>API Endpoint: GET /api/v1/settings/business_profile/tax_details
+Service: API (Apply Prod Settings Table)
+
+TDS-Specific Fields within Tax Details:
+├── tds_payment_enabled       (boolean) - Enables TDS option in payout workflow
+├── tds_filing_enabled        (boolean) - Enables TDS filing via Compliance Engine
+├── tds_filing_onboarding_date (timestamp) - When merchant enabled TDS filing
+└── tds_deductor_tan          (string) - TAN of deductor (for filing)</code></pre>
+
+      <h4>Sample Business Profile / Tax Details Structure</h4>
+      <pre><code>{
+  "entity": "settings",
+  "merchant_id": "JInBTCIHDIQAOW",
+  "business_profile": {
+    "legal_entity_name": "Acme Corp Pvt Ltd",
+    "pan": "ABCDE1234F",
+    "gstin": "27ABCDE1234F1Z5",
+    "registered_address": {
+      "line1": "123 Business Park",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "pincode": "400001"
+    },
+    "tax_details": {
+      "tds_payment_enabled": true,
+      "tds_filing_enabled": true,
+      "tds_filing_onboarding_date": 1704067200,
+      "tds_deductor_tan": "MUMB12345A",
+      "filing_quarter_start": 1704067200
+    }
+  }
+}</code></pre>
+
+      <h3>2.3 Enablement Flow</h3>
+      <div class="callout callout-success">
+        <div class="callout-title">✅ Enablement Rules</div>
+        <ul>
+          <li><strong>TDS Payment</strong> can be enabled independently at any time</li>
+          <li><strong>TDS Filing</strong> can only be enabled AFTER TDS Payment is enabled</li>
+          <li>Disabling TDS Payment automatically disables TDS Filing</li>
+          <li>When Filing is enabled mid-quarter, system calculates if bulk import is required</li>
+        </ul>
+      </div>
+
+      <h3>2.4 Merchant Info Aggregator API</h3>
+      <div class="callout">
+        <div class="callout-title">🔧 New API: Merchant TDS Info Aggregator</div>
+        <p>When Compliance Engine requests merchant information for TDS payment or filing, BB+ will provide a unified API that aggregates data from multiple sources.</p>
+      </div>
+
+      <h4>Why an Aggregator API?</h4>
+      <table>
+        <tr>
+          <th>Requirement</th>
+          <th>Solution</th>
+          <th>Benefit</th>
+        </tr>
+        <tr>
+          <td><strong>TDS Settings</strong></td>
+          <td>Fetch from Business Profile / Tax Details (API settings)</td>
+          <td>Single source for enablement flags</td>
+        </tr>
+        <tr>
+          <td><strong>Deductor Details</strong></td>
+          <td>Fetch from Business Profile (legal name, PAN, TAN)</td>
+          <td>Required for Form 26Q filing</td>
+        </tr>
+        <tr>
+          <td><strong>Bank Account Info</strong></td>
+          <td>Query Banking Service</td>
+          <td>For TDS deduction account</td>
+        </tr>
+        <tr>
+          <td><strong>Contact/LDC Details</strong></td>
+          <td>Query Contacts Service</td>
+          <td>Deductee information and LDC certificates</td>
+        </tr>
+        <tr>
+          <td><strong>Unified Response</strong></td>
+          <td>Combine all data</td>
+          <td>Single API call for Compliance Engine</td>
+        </tr>
+      </table>
+
+      <h4>Aggregator API Design</h4>
+      <pre><code>GET /internal/v1/tds/merchant/{merchant_id}/filing-info
+
+Purpose: Provides all merchant information required for TDS filing to Compliance Engine
+
+Data Sources:
+┌─────────────────────────────────────────────────────────────────┐
+│                    Merchant TDS Info Aggregator                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────────┐   ┌──────────────────┐                   │
+│  │ Business Profile │   │  Banking Service │                   │
+│  │  (API Settings)  │   │                  │                   │
+│  ├──────────────────┤   ├──────────────────┤                   │
+│  │ • Legal Name     │   │ • Account Number │                   │
+│  │ • PAN            │   │ • IFSC           │                   │
+│  │ • TAN            │   │ • Account ID     │                   │
+│  │ • Address        │   │                  │                   │
+│  │ • TDS Settings   │   │                  │                   │
+│  └────────┬─────────┘   └────────┬─────────┘                   │
+│           │                      │                             │
+│           └──────────┬───────────┘                             │
+│                      ▼                                         │
+│           ┌──────────────────┐                                 │
+│           │   Aggregator     │                                 │
+│           │     Service      │                                 │
+│           └────────┬─────────┘                                 │
+│                    │                                           │
+│                    ▼                                           │
+│           ┌──────────────────┐                                 │
+│           │ Unified Response │ ──────▶ Compliance Engine       │
+│           └──────────────────┘                                 │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘</code></pre>
+
+      <h4>Aggregator API Response</h4>
+      <pre><code>GET /internal/v1/tds/merchant/JInBTCIHDIQAOW/filing-info
+
+Response:
+{
+  "entity": "tds_merchant_info",
+  "merchant_id": "JInBTCIHDIQAOW",
+  "deductor_details": {
+    "legal_entity_name": "Acme Corp Pvt Ltd",
+    "pan": "ABCDE1234F",
+    "tan": "MUMB12345A",
+    "registered_address": {
+      "line1": "123 Business Park",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "pincode": "400001"
+    }
+  },
+  "tds_settings": {
+    "tds_payment_enabled": true,
+    "tds_filing_enabled": true,
+    "filing_onboarding_date": 1704067200,
+    "quarter_start_date": 1704067200
+  },
+  "deduction_account": {
+    "account_id": "ba_JInBTDIHDIQAOW",
+    "account_number": "1234567890123456",
+    "ifsc": "HDFC0001234",
+    "account_type": "current"
+  },
+  "fetched_at": 1706140800
+}</code></pre>
+
+      <h4>Implementation in Payouts Service</h4>
+      <pre><code>// internal/app/tds/aggregator.go
+
+type MerchantTDSInfo struct {
+    MerchantID       string                `json:"merchant_id"`
+    DeductorDetails  DeductorDetails       `json:"deductor_details"`
+    TDSSettings      TDSSettings           `json:"tds_settings"`
+    DeductionAccount DeductionAccountInfo  `json:"deduction_account"`
+    FetchedAt        int64                 `json:"fetched_at"`
+}
+
+func (s *TDSAggregatorService) GetMerchantFilingInfo(ctx context.Context, merchantID string) (*MerchantTDSInfo, error) {
+    // 1. Fetch Business Profile / Tax Details from API settings
+    businessProfile, err := s.apiClient.GetBusinessProfile(ctx, merchantID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to fetch business profile: %w", err)
+    }
+    
+    // 2. Fetch Banking Account Info
+    bankingInfo, err := s.bankingClient.GetMerchantAccount(ctx, merchantID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to fetch banking info: %w", err)
+    }
+    
+    // 3. Aggregate and return
+    return &MerchantTDSInfo{
+        MerchantID: merchantID,
+        DeductorDetails: DeductorDetails{
+            LegalEntityName:   businessProfile.LegalEntityName,
+            PAN:               businessProfile.PAN,
+            TAN:               businessProfile.TaxDetails.TDSDeductorTAN,
+            RegisteredAddress: businessProfile.RegisteredAddress,
+        },
+        TDSSettings: TDSSettings{
+            TDSPaymentEnabled:     businessProfile.TaxDetails.TDSPaymentEnabled,
+            TDSFilingEnabled:      businessProfile.TaxDetails.TDSFilingEnabled,
+            FilingOnboardingDate:  businessProfile.TaxDetails.TDSFilingOnboardingDate,
+            QuarterStartDate:      businessProfile.TaxDetails.FilingQuarterStart,
+        },
+        DeductionAccount: DeductionAccountInfo{
+            AccountID:     bankingInfo.AccountID,
+            AccountNumber: bankingInfo.AccountNumber,
+            IFSC:          bankingInfo.IFSC,
+            AccountType:   bankingInfo.AccountType,
+        },
+        FetchedAt: time.Now().Unix(),
+    }, nil
+}</code></pre>
+
+      <h4>Audit Trail for Settings Changes</h4>
+      <div class="callout callout-warning">
+        <div class="callout-title">⚠️ Audit Requirement</div>
+        <p>Since Business Profile settings may not have built-in audit logging, implement a supplementary audit table to track TDS settings changes:</p>
+      </div>
+
+      <pre><code>CREATE TABLE tds_settings_audit_log (
+    id                  CHAR(14) PRIMARY KEY,
+    merchant_id         CHAR(14) NOT NULL,
+    config_key          VARCHAR(50) NOT NULL,      -- e.g., "tds_payment_enabled", "tds_filing_enabled"
+    old_value           VARCHAR(255),              -- Previous value (null for first set)
+    new_value           VARCHAR(255) NOT NULL,     -- New value
+    changed_by          VARCHAR(100) NOT NULL,     -- User/admin who made change
+    change_reason       TEXT,                      -- Reason for change (optional)
+    changed_at          INT NOT NULL,              -- Unix timestamp
+    
+    INDEX idx_merchant_id (merchant_id),
+    INDEX idx_config_key (config_key),
+    INDEX idx_changed_at (changed_at)
+) ENGINE=InnoDB;</code></pre>
+
+      <h4>Settings Update Flow</h4>
+      <pre><code>// When updating TDS settings, always create audit log entry
+func (s *TDSSettingsService) EnableTDSPayment(ctx context.Context, merchantID string, enabledBy string) error {
+    // 1. Get current value
+    currentSettings, _ := s.GetTDSSettings(ctx, merchantID)
+    
+    // 2. Update Business Profile / Tax Details
+    err := s.apiClient.UpdateTaxDetails(ctx, merchantID, map[string]interface{}{
+        "tds_payment_enabled": true,
+    })
+    if err != nil {
+        return err
+    }
+    
+    // 3. Create audit log entry
+    auditEntry := &TDSSettingsAuditLog{
+        ID:          generateID(),
+        MerchantID:  merchantID,
+        ConfigKey:   "tds_payment_enabled",
+        OldValue:    fmt.Sprintf("%v", currentSettings.TDSPaymentEnabled),
+        NewValue:    "true",
+        ChangedBy:   enabledBy,
+        ChangeReason: "Merchant enabled TDS payment feature",
+        ChangedAt:   time.Now().Unix(),
+    }
+    
+    return s.auditRepo.Create(ctx, auditEntry)
+}</code></pre>
+
+      <!-- Section 3: Bulk Import -->
+      <h2 id="bulk-import">3. Historical Data Bulk Import</h2>
+
+      <h3>3.1 When is Bulk Import Required?</h3>
+      <p>Bulk import is required when a merchant enables TDS Filing in the <strong>middle of a fiscal quarter</strong>. For example:</p>
+      
+      <div class="section-card">
+        <h4>Scenario: Merchant enables TDS Filing on Feb 15th</h4>
+        <ul>
+          <li><strong>Quarter:</strong> Jan-Mar (Q4 FY)</li>
+          <li><strong>Razorpay captures:</strong> Payments from Feb 15th onwards</li>
+          <li><strong>Missing data:</strong> Payments from Jan 1st to Feb 14th</li>
+          <li><strong>Action needed:</strong> Merchant must upload historical TDS data for complete filing</li>
+        </ul>
+      </div>
+
+      <h3>3.2 Quarterly Boundaries</h3>
+      <table>
+        <tr>
+          <th>Quarter</th>
+          <th>Period</th>
+          <th>Filing Due Date</th>
+        </tr>
+        <tr>
+          <td>Q1</td>
+          <td>April - June</td>
+          <td>July 31</td>
+        </tr>
+        <tr>
+          <td>Q2</td>
+          <td>July - September</td>
+          <td>October 31</td>
+        </tr>
+        <tr>
+          <td>Q3</td>
+          <td>October - December</td>
+          <td>January 31</td>
+        </tr>
+        <tr>
+          <td>Q4</td>
+          <td>January - March</td>
+          <td>May 31</td>
+        </tr>
+      </table>
+
+      <h3>3.3 CSV Template for Bulk Import</h3>
+      <pre><code>vendor_pan,vendor_name,tds_category_code,gross_amount,tds_amount,net_amount,payment_date,payment_reference
+ABCDE1234F,Vendor Name,194J,100000,10000,90000,2026-01-15,REF001
+FGHIJ5678K,Another Vendor,194C,50000,1000,49000,2026-01-20,REF002</code></pre>
+
+      <h3>3.4 Validation Rules</h3>
+      <table>
+        <tr>
+          <th>Field</th>
+          <th>Validation</th>
+        </tr>
+        <tr>
+          <td>vendor_pan</td>
+          <td>Must match format: <code>[A-Z]{5}[0-9]{4}[A-Z]</code></td>
+        </tr>
+        <tr>
+          <td>gross_amount</td>
+          <td>Must be positive integer (in paise)</td>
+        </tr>
+        <tr>
+          <td>tds_amount</td>
+          <td>Must be non-negative; <code>gross - tds = net</code></td>
+        </tr>
+        <tr>
+          <td>payment_date</td>
+          <td>Must be within import range (quarter_start to onboarding_date - 1)</td>
+        </tr>
+        <tr>
+          <td>tds_category_code</td>
+          <td>Must be valid TDS section code (e.g., 194J, 194C)</td>
+        </tr>
+      </table>
+
+      <h3>3.5 Bulk Import Flow</h3>
+      <div class="flow-diagram">
+        <div class="flow-step">Download Template</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Fill Data</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Upload CSV</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Validate</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Preview</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Confirm Import</div>
+      </div>
+
+      <!-- Section 4: Payout Flow -->
+      <h2 id="payout-flow">4. Payout Flow with TDS</h2>
+
+      <h3>4.1 Pre-requisites</h3>
+      <div class="callout">
+        <div class="callout-title">⚡ Before TDS can be applied to a payout:</div>
+        <ol>
+          <li>TDS Payment must be enabled for the merchant</li>
+          <li>Contact must be of type <code>vendor</code></li>
+          <li>Contact must have valid PAN information</li>
+        </ol>
+      </div>
+
+      <h3>4.2 Step-by-Step Payout Flow</h3>
+
+      <h4>Step 1: Select Contact</h4>
+      <ul>
+        <li>User selects a contact for payout</li>
+        <li>System checks if contact is of type <code>vendor</code></li>
+        <li>If vendor, system checks for PAN availability</li>
+        <li><strong>If PAN missing:</strong> Show banner prompting user to update PAN</li>
+      </ul>
+
+      <h4>Step 2: Enter Amount & Payment Mode</h4>
+      <ul>
+        <li>User enters the <strong>gross amount</strong> (total invoice amount)</li>
+        <li>User selects payment mode (IMPS/NEFT/RTGS/UPI)</li>
+      </ul>
+
+      <h4>Step 3: Add TDS (Optional)</h4>
+      <ul>
+        <li>User clicks "Add TDS" option</li>
+        <li>System shows TDS category dropdown (fetched from Compliance Engine)</li>
+        <li>User selects TDS category (e.g., 194J - Professional Services)</li>
+        <li>User can check "Is LDC applicable" checkbox</li>
+      </ul>
+
+      <h4>Step 4: Calculate TDS</h4>
+      <ul>
+        <li>User clicks "Calculate" button</li>
+        <li>System calls Compliance Engine with <code>create_entry: false</code></li>
+        <li>CE returns: <code>gross_amount</code>, <code>tds_amount</code>, <code>net_amount</code>, <code>tds_rate</code></li>
+        <li><strong>LDC Handling:</strong>
+          <ul>
+            <li>If LDC is applicable AND active LDC exists → Apply LDC rate</li>
+            <li>If LDC is applicable BUT no active LDC → Apply standard rate (with justification message)</li>
+          </ul>
+        </li>
+        <li>System displays the split to user</li>
+      </ul>
+
+      <h4>Step 5: Confirm & OTP</h4>
+      <ul>
+        <li>User reviews the breakdown</li>
+        <li>User confirms and enters OTP</li>
+        <li>System creates payout with <strong>net amount</strong></li>
+        <li>System stores TDS metadata locally (status: PENDING)</li>
+      </ul>
+
+      <h4>Step 6: Post-Processing (Async)</h4>
+      <ul>
+        <li>Payout moves to <code>PROCESSED</code> status</li>
+        <li>System queues job to create TDS entry in Compliance Engine</li>
+        <li>Job calls CE with <code>create_entry: true</code></li>
+        <li>TDS metadata updated with CE entry ID and status: CREATED</li>
+      </ul>
+
+      <h4>Step 7: Handle Reversals</h4>
+      <ul>
+        <li>If payout is reversed/failed</li>
+        <li>System queues job to notify Compliance Engine</li>
+        <li>CE marks TDS entry as REVERSED</li>
+        <li>TDS metadata updated accordingly</li>
+      </ul>
+
+      <h3>4.3 TDS Calculation Example</h3>
+      <div class="section-card">
+        <h4>Example: 194J with LDC</h4>
+        <table>
+          <tr>
+            <td><strong>Gross Amount (Invoice)</strong></td>
+            <td>₹1,00,000</td>
+          </tr>
+          <tr>
+            <td><strong>TDS Category</strong></td>
+            <td>194J (Professional Services)</td>
+          </tr>
+          <tr>
+            <td><strong>Standard Rate</strong></td>
+            <td>10%</td>
+          </tr>
+          <tr>
+            <td><strong>LDC Rate</strong></td>
+            <td>2% (if active LDC)</td>
+          </tr>
+          <tr>
+            <td><strong>TDS Amount</strong></td>
+            <td>₹2,000 (with LDC) / ₹10,000 (without LDC)</td>
+          </tr>
+          <tr>
+            <td><strong>Net Amount (Vendor receives)</strong></td>
+            <td>₹98,000 (with LDC) / ₹90,000 (without LDC)</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Section 5: Architecture -->
+      <h2 id="architecture">5. System Architecture</h2>
+
+      <h3>5.1 Component Ownership</h3>
+      <table>
+        <tr>
+          <th>Component</th>
+          <th>Owner</th>
+          <th>Responsibility</th>
+        </tr>
+        <tr>
+          <td>TDS Settings Storage</td>
+          <td>API Service (Business Profile / Tax Details)</td>
+          <td>Storage of merchant TDS enablement flags within existing tax details section</td>
+        </tr>
+        <tr>
+          <td>Merchant Info Aggregator</td>
+          <td>Payouts Service (BB+)</td>
+          <td>Aggregate TDS settings + deductor details + account info for Compliance Engine</td>
+        </tr>
+        <tr>
+          <td>TDS Settings Audit Log</td>
+          <td>Payouts Service (BB+)</td>
+          <td>Track settings enable/disable history with timestamps</td>
+        </tr>
+        <tr>
+          <td>TDS Category Master</td>
+          <td>Compliance Engine 2.0</td>
+          <td>Source of truth for TDS sections and rates</td>
+        </tr>
+        <tr>
+          <td>TDS Calculation</td>
+          <td>Compliance Engine 2.0</td>
+          <td>Calculate net amount and TDS amount</td>
+        </tr>
+        <tr>
+          <td>TDS Entry Creation</td>
+          <td>Compliance Engine 2.0</td>
+          <td>Create and store TDS transaction records</td>
+        </tr>
+        <tr>
+          <td>Payout Orchestration</td>
+          <td>Payouts Service</td>
+          <td>Coordinate payout + TDS flow</td>
+        </tr>
+        <tr>
+          <td>Bulk Import</td>
+          <td>Payouts Service</td>
+          <td>CSV upload, validation, CE submission</td>
+        </tr>
+        <tr>
+          <td>TDS Filing</td>
+          <td>Compliance Engine 2.0</td>
+          <td>Form 26Q generation and submission</td>
+        </tr>
+      </table>
+
+      <h3>5.2 Integration Flow</h3>
+      <pre><code>┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              TDS PAYOUT FLOW                                     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌──────────┐     ┌──────────────┐     ┌───────────┐     ┌──────────────────┐  │
+│  │  BB+ UI  │────▶│Payouts Service│────▶│  Kafka    │────▶│Compliance Engine │  │
+│  └──────────┘     └──────────────┘     │  Queue    │     │       2.0        │  │
+│       │                  │              └───────────┘     └──────────────────┘  │
+│       │                  │                    │                    │            │
+│       │                  │                    │                    │            │
+│  1. Select Contact       │                    │                    │            │
+│  2. Enter Amount         │                    │                    │            │
+│  3. Add TDS Option       │                    │                    │            │
+│       │                  │                    │                    │            │
+│       ├──────────────────┼────────────────────┼───────────────────▶│            │
+│       │           4. GET /tds/categories      │                    │            │
+│       │◀─────────────────┼────────────────────┼────────────────────┤            │
+│       │           (Categories + LDC info)     │                    │            │
+│       │                  │                    │                    │            │
+│       ├──────────────────┼────────────────────┼───────────────────▶│            │
+│       │           5. POST /tds/transaction (create_entry=false)    │            │
+│       │◀─────────────────┼────────────────────┼────────────────────┤            │
+│       │           (Calculation: net + TDS split)                   │            │
+│       │                  │                    │                    │            │
+│  6. Show Split           │                    │                    │            │
+│  7. OTP Confirm          │                    │                    │            │
+│       │                  │                    │                    │            │
+│       ├─────────────────▶│                    │                    │            │
+│       │           8. Create Payout            │                    │            │
+│       │              (net amount)             │                    │            │
+│       │              Store TDS Metadata       │                    │            │
+│       │◀─────────────────┤                    │                    │            │
+│       │                  │                    │                    │            │
+│                          │                    │                    │            │
+│  ════════════════════════╪════════════════════╪════════════════════╪════════    │
+│         ASYNC PROCESSING (After Payout PROCESSED)                               │
+│  ════════════════════════╪════════════════════╪════════════════════╪════════    │
+│                          │                    │                    │            │
+│                          ├───────────────────▶│                    │            │
+│                          │  9. Push to Queue  │                    │            │
+│                          │                    ├───────────────────▶│            │
+│                          │                    │ 10. POST /tds/transaction       │
+│                          │                    │     (create_entry=true)         │
+│                          │                    │◀───────────────────┤            │
+│                          │◀───────────────────┤  (Entry Created)   │            │
+│                          │  11. Update Metadata│                   │            │
+│                          │                    │                    │            │
+└─────────────────────────────────────────────────────────────────────────────────┘</code></pre>
+
+      <h3>5.3 Queue-Based Architecture</h3>
+      <div class="callout callout-success">
+        <div class="callout-title">✅ Why Queue-Based?</div>
+        <ul>
+          <li>Payout processing is not blocked by CE availability</li>
+          <li>Automatic retries if CE is temporarily unavailable</li>
+          <li>Clean separation of concerns</li>
+          <li>Better fault tolerance and observability</li>
+        </ul>
+      </div>
+
+      <h4>Kafka Topics</h4>
+      <table>
+        <tr>
+          <th>Topic</th>
+          <th>Purpose</th>
+          <th>Consumer Action</th>
+        </tr>
+        <tr>
+          <td><code>tds-entry-creation</code></td>
+          <td>Create TDS entries after payout PROCESSED</td>
+          <td>Call CE <code>POST /tds/transaction</code> with <code>create_entry=true</code></td>
+        </tr>
+        <tr>
+          <td><code>tds-reversal-notification</code></td>
+          <td>Notify CE about payout reversals</td>
+          <td>Call CE <code>PATCH /tds/entries/{id}/reversal</code></td>
+        </tr>
+      </table>
+
+      <h4>Message Payload: TDS Entry Creation</h4>
+      <pre><code>{
+    "payout_id": "pout_abc123",
+    "merchant_id": "JInBTCIHDIQAOW",
+    "tds_metadata_id": "tds_meta_xyz",
+    "utr": "UTR123456789",
+    "processed_at": 1737216000,
+    "retry_count": 0
+}</code></pre>
+
+      <h4>Consumer Behavior</h4>
+      <ol>
+        <li>Fetch TDS metadata from DB</li>
+        <li>Call CE <code>POST /tds/transaction</code> with <code>create_entry: true</code></li>
+        <li>Update TDS metadata with <code>ce_entry_id</code> and <code>ce_entry_status</code></li>
+        <li>On failure: retry up to 3 times with exponential backoff</li>
+        <li>After 3 failures: alert and mark for manual intervention</li>
+      </ol>
+
+      <!-- Section 6: Data Models -->
+      <h2 id="data-models">6. Data Models</h2>
+
+      <h3>6.1 TDS Payout Metadata Table</h3>
+      <pre><code>CREATE TABLE tds_payout_metadata (
+    id                    CHAR(14) PRIMARY KEY,
+    payout_id             CHAR(14) NOT NULL UNIQUE,
+    merchant_id           CHAR(14) NOT NULL,
+    contact_id            CHAR(14) NOT NULL,
+    contact_pan           VARCHAR(10) NOT NULL,
+    
+    -- TDS Details
+    tds_category_id       INT NOT NULL,
+    tds_category_code     VARCHAR(10) NOT NULL,   -- e.g., "194J"
+    gross_amount          BIGINT NOT NULL,        -- in paise
+    tds_amount            BIGINT NOT NULL,        -- in paise
+    net_amount            BIGINT NOT NULL,        -- in paise
+    tds_rate              DECIMAL(5,2) NOT NULL,  -- e.g., 10.00
+    
+    -- LDC Details
+    is_ldc_applied        BOOLEAN DEFAULT FALSE,
+    ldc_rate              DECIMAL(5,2),           -- LDC rate if applied
+    
+    -- Compliance Engine Reference
+    ce_entry_id           VARCHAR(32),            -- CE TDS entry ID
+    ce_acknowledgement_id VARCHAR(64),
+    ce_entry_status       VARCHAR(20) DEFAULT 'PENDING',  -- PENDING|CREATED|REVERSED
+    
+    -- Processing metadata
+    retry_count           INT DEFAULT 0,
+    utr                   VARCHAR(64),
+    processed_at          INT,
+    
+    -- Timestamps
+    created_at            INT NOT NULL,
+    updated_at            INT NOT NULL,
+    
+    INDEX idx_merchant_id (merchant_id),
+    INDEX idx_payout_id (payout_id),
+    INDEX idx_ce_entry_id (ce_entry_id),
+    INDEX idx_ce_entry_status (ce_entry_status)
+) ENGINE=InnoDB;</code></pre>
+
+      <h3>6.2 TDS Bulk Imports Table</h3>
+      <pre><code>CREATE TABLE tds_bulk_imports (
+    id                 CHAR(14) PRIMARY KEY,
+    merchant_id        CHAR(14) NOT NULL,
+    
+    -- Import Details
+    file_id            VARCHAR(40) NOT NULL,     -- UFH file ID
+    total_records      INT NOT NULL,
+    processed_records  INT DEFAULT 0,
+    failed_records     INT DEFAULT 0,
+    
+    -- Status
+    status             VARCHAR(20) NOT NULL,     -- PENDING|VALIDATING|VALIDATED|IMPORTING|COMPLETED|FAILED
+    error_file_id      VARCHAR(40),              -- UFH file ID for error report
+    
+    -- Quarter Info
+    quarter            VARCHAR(6) NOT NULL,      -- e.g., "2026Q1"
+    import_from_date   INT NOT NULL,             -- Start of import range
+    import_to_date     INT NOT NULL,             -- End of import range
+    
+    -- Timestamps
+    created_at         INT NOT NULL,
+    updated_at         INT NOT NULL,
+    completed_at       INT,
+    
+    INDEX idx_merchant_id (merchant_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB;</code></pre>
+
+      <h3>6.3 CE Entry Status Values</h3>
+      <table>
+        <tr>
+          <th>Status</th>
+          <th>Description</th>
+          <th>Next Actions</th>
+        </tr>
+        <tr>
+          <td><code>PENDING</code></td>
+          <td>TDS metadata created, CE entry not yet created</td>
+          <td>Queue job after payout PROCESSED</td>
+        </tr>
+        <tr>
+          <td><code>CREATED</code></td>
+          <td>TDS entry successfully created in CE</td>
+          <td>None (terminal for happy path)</td>
+        </tr>
+        <tr>
+          <td><code>REVERSED</code></td>
+          <td>Payout was reversed, CE notified</td>
+          <td>None (terminal)</td>
+        </tr>
+        <tr>
+          <td><code>FAILED</code></td>
+          <td>CE entry creation failed after max retries</td>
+          <td>Manual intervention required</td>
+        </tr>
+      </table>
+
+      <!-- Section 7: API Contracts -->
+      <h2 id="api-contracts">7. API Contracts</h2>
+
+      <h3>7.1 Internal APIs (Payouts Service)</h3>
+
+      <h4>7.1.1 Get TDS Settings</h4>
+      <pre><code>GET /internal/v1/merchants/{merchant_id}/settings/tds
+
+Response 200:
+{
+    "tds_payment_enabled": true,
+    "tds_filing_enabled": true,
+    "onboarding_date": 1737216000,
+    "requires_bulk_import": true,
+    "import_range": {
+        "from": 1735689600,
+        "to": 1737215999
+    }
+}</code></pre>
+
+      <h4>7.1.2 Enable TDS Payment</h4>
+      <pre><code>POST /internal/v1/merchants/{merchant_id}/settings/tds
+
+Request:
+{
+    "tds_payment_enabled": true
+}
+
+Response 200:
+{
+    "tds_payment_enabled": true,
+    "tds_filing_enabled": false,
+    "updated_at": 1737216000
+}</code></pre>
+
+      <h4>7.1.3 Enable TDS Filing</h4>
+      <pre><code>POST /internal/v1/merchants/{merchant_id}/settings/tds/filing
+
+Request:
+{
+    "tds_filing_enabled": true,
+    "onboarding_date": 1737216000
+}
+
+Response 200:
+{
+    "tds_payment_enabled": true,
+    "tds_filing_enabled": true,
+    "onboarding_date": 1737216000,
+    "quarter_start_date": 1735689600,
+    "requires_bulk_import": true,
+    "import_range": {
+        "from": 1735689600,
+        "to": 1737215999
+    }
+}</code></pre>
+
+      <h4>7.1.4 Get TDS Categories</h4>
+      <pre><code>GET /internal/v1/tds/categories?contact_id={contact_id}
+
+Response 200:
+{
+    "categories": [
+        {
+            "id": 1,
+            "code": "194J",
+            "name": "Professional/Technical Services",
+            "rate": 10.00,
+            "ldc_details": {
+                "applicable": true,
+                "ldc_rate": 2.00,
+                "document_id": "doc_abc123",
+                "valid_from": 1735689600,
+                "valid_to": 1767225600
+            }
+        },
+        {
+            "id": 2,
+            "code": "194C",
+            "name": "Contractor Payments",
+            "rate": 2.00,
+            "ldc_details": null
+        }
+    ]
+}</code></pre>
+
+      <h4>7.1.5 Calculate TDS</h4>
+      <pre><code>POST /internal/v1/tds/calculate
+
+Request:
+{
+    "merchant_id": "JInBTCIHDIQAOW",
+    "contact_id": "cont_Qzlk9VSl1Hgxfj",
+    "gross_amount": 100000,
+    "tds_category_id": 1,
+    "apply_ldc": true
+}
+
+Response 200:
+{
+    "gross_amount": 100000,
+    "tds_category": {
+        "id": 1,
+        "code": "194J",
+        "name": "Professional/Technical Services"
+    },
+    "tds_rate": 2.00,
+    "is_ldc_applied": true,
+    "tds_amount": 2000,
+    "net_amount": 98000,
+    "calculation_id": "calc_xyz789"
+}</code></pre>
+
+      <h4>7.1.6 Create Payout with TDS</h4>
+      <pre><code>POST /v1/payouts
+
+Request (Extended with TDS metadata):
+{
+    "account_number": "4564565456456456",
+    "fund_account_id": "fa_Aa00000000001",
+    "amount": 98000,               // NET amount after TDS
+    "currency": "INR",
+    "mode": "IMPS",
+    "purpose": "vendor_payment",
+    "notes": {
+        "invoice_id": "INV-001"
+    },
+    "tds": {
+        "gross_amount": 100000,    // Original gross amount
+        "tds_category_id": 1,
+        "is_ldc_applicable": true
+    }
+}
+
+Response 201:
+{
+    "id": "pout_abc123",
+    "entity": "payout",
+    "fund_account_id": "fa_Aa00000000001",
+    "amount": 98000,
+    "currency": "INR",
+    "mode": "IMPS",
+    "purpose": "vendor_payment",
+    "status": "processing",
+    "tds": {
+        "gross_amount": 100000,
+        "tds_category_id": 1,
+        "tds_category_code": "194J",
+        "tds_rate": 2.00,
+        "tds_amount": 2000,
+        "net_amount": 98000,
+        "is_ldc_applied": true,
+        "ce_entry_status": "PENDING"
+    },
+    "created_at": 1737216000
+}</code></pre>
+
+      <h3>7.2 Compliance Engine 2.0 APIs (Proposed)</h3>
+
+      <h4>7.2.1 Get TDS Categories</h4>
+      <pre><code>GET /api/v1/tds/categories
+X-Merchant-ID: {merchant_id}
+X-Contact-ID: {contact_id}   // optional, for LDC lookup
+
+Response 200:
+{
+    "data": [
+        {
+            "id": 1,
+            "code": "194J",
+            "name": "Professional/Technical Services",
+            "standard_rate": 10.00,
+            "extern_goi_code": "194J",
+            "ldc_details": {
+                "applicable": true,
+                "rate": 2.00,
+                "document_id": "doc_abc123",
+                "validity": {
+                    "start": 1735689600,
+                    "end": 1767225600
+                }
+            }
+        }
+    ]
+}</code></pre>
+
+      <h4>7.2.2 Unified TDS Transaction API</h4>
+      <div class="callout callout-warning">
+        <div class="callout-title">⚠️ Key API Design Decision</div>
+        <p>This is a <strong>single unified API</strong> that handles both TDS calculation (quote) and TDS entry creation. The behavior is controlled by the <code>create_entry</code> boolean flag.</p>
+      </div>
+
+      <pre><code>POST /api/v1/tds/transaction
+
+Request:
+{
+    "merchant_id": "JInBTCIHDIQAOW",
+    "contact_id": "cont_Qzlk9VSl1Hgxfj",
+    "contact_pan": "ABCDE1234F",
+    "gross_amount": 100000,
+    "tds_category_id": 1,
+    "is_ldc_applicable": true,
+    "transaction_date": 1737216000,
+    
+    "create_entry": false,           // FALSE = Calculate only, TRUE = Create entry
+    
+    // Required when create_entry = true
+    "payout_id": "pout_abc123",
+    "utr": "UTR123456789"
+}
+
+Response when create_entry = false (Calculate/Quote):
+{
+    "calculation_id": "calc_xyz789",
+    "gross_amount": 100000,
+    "tds_rate": 2.00,
+    "tds_amount": 2000,
+    "net_amount": 98000,
+    "is_ldc_applied": true,
+    "ldc_document_id": "doc_abc123",
+    "ldc_justification": null,
+    "valid_until": 1737219600
+}
+
+Response when create_entry = false AND no active LDC:
+{
+    "calculation_id": "calc_xyz790",
+    "gross_amount": 100000,
+    "tds_rate": 10.00,              // Standard rate applied
+    "tds_amount": 10000,
+    "net_amount": 90000,
+    "is_ldc_applied": false,
+    "ldc_document_id": null,
+    "ldc_justification": "No active LDC certificates available for this category",
+    "valid_until": 1737219600
+}
+
+Response when create_entry = true (Create Entry):
+{
+    "entry_id": "tds_entry_abc123",
+    "acknowledgement_id": "ack_xyz789",
+    "status": "CREATED",
+    "quarter": "2026Q1",
+    "gross_amount": 100000,
+    "tds_rate": 2.00,
+    "tds_amount": 2000,
+    "net_amount": 98000,
+    "is_ldc_applied": true,
+    "created_at": 1737216000
+}</code></pre>
+
+      <h4>7.2.3 Notify Reversal</h4>
+      <pre><code>PATCH /api/v1/tds/entries/{entry_id}/reversal
+
+Request:
+{
+    "reversal_type": "PAYOUT_REVERSED",   // or "PAYOUT_FAILED"
+    "reversal_date": 1737302400,
+    "reversal_id": "rev_xyz789"
+}
+
+Response 200:
+{
+    "entry_id": "tds_entry_abc123",
+    "status": "REVERSED",
+    "reversal_processed": true
+}</code></pre>
+
+      <!-- Section 8: Module Structure -->
+      <h2 id="module-structure">8. Payouts Codebase Implementation Details</h2>
+
+      <div class="callout callout-success">
+        <div class="callout-title">✅ Key Implementation Principle</div>
+        <p><strong>No schema changes required for core payouts table!</strong> TDS metadata will be stored using the existing <code>payout_meta_permanent</code> table, which supports flexible JSON storage without altering the payouts schema.</p>
+      </div>
+
+      <h3>8.1 Internal Payout Create API Changes</h3>
+      
+      <h4>8.1.1 API Request Extension</h4>
+      <p>The existing Payout Create API (<code>POST /v1/payouts</code>) will accept two new TDS-related fields in the request body:</p>
+
+      <pre><code>// Existing FundAccountPayoutRequest in internal/app/dtos/payoutCreate.go
+type FundAccountPayoutRequest struct {
+    Purpose       string                 `json:"purpose" binding:"required,max=30"`
+    Amount        int64                  `json:"amount" binding:"required"`    // NET amount after TDS
+    Currency      string                 `json:"currency" binding:"required,oneof=INR MYR,len=3"`
+    Notes         map[string]interface{} `json:"notes"`
+    FundAccountID string                 `json:"fund_account_id" binding:"required_without=FundAccount"`
+    Mode          string                 `json:"mode"`
+    // ... other existing fields ...
+    
+    // NEW: TDS Details for BB+ TDS Payment feature
+    TDS           TDSDetails             `json:"tds" binding:"omitempty"`
+}
+
+// TDSDetails in internal/app/dtos/payoutDetails.go
+type TDSDetails struct {
+    // GrossAmount is the original amount before TDS deduction (in paise)
+    GrossAmount      nulls.Int64 `json:"gross_amount" binding:"omitempty"`
+    // TDSCategoryID is the TDS category ID from Compliance Engine
+    TDSCategoryID    nulls.Int   `json:"tds_category_id" binding:"omitempty"`
+    // IsLDCApplicable indicates if LDC should be checked/applied
+    IsLDCApplicable  bool        `json:"is_ldc_applicable" binding:"omitempty"`
+}</code></pre>
+
+      <h4>8.1.2 TDS Middleware Layer</h4>
+      <p>When the payout request contains TDS details (<code>tds_category_id</code> and <code>is_ldc_applicable</code>), the payout core logic will invoke a TDS middleware layer:</p>
+
+      <div class="flow-diagram">
+        <div class="flow-step">Payout Request</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">TDS Middleware</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">CE2 Calculate</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Payout Core</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">Store Metadata</div>
+      </div>
+
+      <pre><code>// internal/app/payouts/tds_middleware.go
+
+func (c *Core) processTDSIfApplicable(ctx context.Context, payout *Payout, request *dtos.FundAccountPayoutRequest) error {
+    // 1. Check if TDS details are provided
+    if !request.TDS.TDSCategoryID.Valid || request.TDS.TDSCategoryID.Int == 0 {
+        return nil // No TDS processing needed
+    }
+
+    // 2. Check if TDS is enabled for this merchant
+    isTDSEnabled, err := c.settingsCore.IsTDSPaymentEnabled(ctx, payout.MerchantID)
+    if err != nil || !isTDSEnabled {
+        return errorclass.TDSNotEnabled.New("TDS payment feature is not enabled for this merchant")
+    }
+
+    // 3. Call Compliance Engine 2.0 for TDS calculation (create_entry: false)
+    ceClient := c.complianceEngineClient
+    
+    tdsRequest := &complianceEngine.TDSTransactionRequest{
+        MerchantID:      payout.MerchantID,
+        ContactID:       getContactIDFromFundAccount(ctx, payout.FundAccountID),
+        GrossAmount:     request.TDS.GrossAmount.Int64,
+        TDSCategoryID:   request.TDS.TDSCategoryID.Int,
+        IsLDCApplicable: request.TDS.IsLDCApplicable,
+        CreateEntry:     false,  // First call is calculate-only
+    }
+    
+    tdsResponse, err := ceClient.CalculateTDS(ctx, tdsRequest)
+    if err != nil {
+        return errorclass.CECalculationFailed.New("Failed to calculate TDS: " + err.Error())
+    }
+
+    // 4. Validate that payout amount matches calculated net amount
+    if payout.Amount != tdsResponse.NetAmount {
+        return errorclass.TDSAmountMismatch.New(
+            fmt.Sprintf("Payout amount (%d) does not match calculated net amount (%d)", 
+                payout.Amount, tdsResponse.NetAmount))
+    }
+
+    // 5. Store TDS metadata for later use (in memory, to be persisted after payout creation)
+    ctx = context.WithValue(ctx, "tds_calculation", tdsResponse)
+    
+    return nil
+}</code></pre>
+
+      <h4>8.1.3 Complete Payout Flow with TDS</h4>
+      <pre><code>// internal/app/payouts/core.go - Modified CreatePayoutToFundAccount
+
+func (c *Core) CreatePayoutToFundAccount(ctx context.Context, input interface{}) (*Payout, errors.IError) {
+    request := input.(*dtos.FundAccountPayoutRequest)
+    
+    // 1. Standard payout creation setup
+    payout := &Payout{}
+    c.buildPayoutFromRequest(ctx, payout, request)
+    
+    // 2. [NEW] Process TDS if applicable
+    if hasTDSDetails(request) {
+        if err := c.processTDSIfApplicable(ctx, payout, request); err != nil {
+            return nil, err
+        }
+    }
+    
+    // 3. Continue with standard payout creation flow
+    // ... validation, pricing, ledger transaction, etc.
+    
+    // 4. Save payout to database
+    if err := c.repo.Create(ctx, payout); err != nil {
+        return nil, err
+    }
+    
+    // 5. [NEW] Save TDS metadata to payout_meta_permanent table
+    if tdsCalc := ctx.Value("tds_calculation"); tdsCalc != nil {
+        c.saveTDSMetadata(ctx, payout.ID, tdsCalc.(*complianceEngine.TDSCalculationResponse))
+    }
+    
+    // 6. [NEW] Queue TDS entry creation for when payout is processed
+    // (This is done via webhook/status change handler)
+    
+    return payout, nil
+}</code></pre>
+
+      <h3>8.2 TDS Metadata Storage (No Schema Change)</h3>
+      
+      <div class="callout">
+        <div class="callout-title">💡 Storage Strategy: payout_meta_permanent</div>
+        <p>Instead of adding columns to the <code>payouts</code> table, we use the existing <code>payout_meta_permanent</code> table which supports flexible JSON metadata storage.</p>
+      </div>
+
+      <h4>8.2.1 Existing Table Structure</h4>
+      <pre><code>-- Table: payout_meta_permanent (already exists)
+CREATE TABLE payout_meta_permanent (
+    id            CHAR(14) PRIMARY KEY,
+    payout_id     VARCHAR(14) NOT NULL,
+    meta_name     VARCHAR(50) NOT NULL,       -- e.g., "tds_calculation"
+    meta_value    JSON NOT NULL,              -- Flexible JSON storage
+    created_at    INT NOT NULL,
+    updated_at    INT NOT NULL,
+    deleted_at    INT DEFAULT NULL,
+    
+    INDEX idx_payout_id (payout_id),
+    INDEX idx_meta_name (meta_name)
+) ENGINE=InnoDB;</code></pre>
+
+      <h4>8.2.2 TDS Metadata Structure</h4>
+      <pre><code>// Meta Name: "tds_calculation"
+// Stored when payout is created with TDS
+
+{
+    "gross_amount": 100000,
+    "tds_category_id": 1,
+    "tds_category_code": "194J",
+    "tds_rate": 2.00,
+    "is_ldc_applied": true,
+    "tds_amount": 2000,
+    "net_amount": 98000,
+    "calculation_id": "calc_xyz789",
+    "contact_pan": "ABCDE1234F",
+    "ce_entry_status": "PENDING",           // PENDING | CREATED | FAILED | REVERSED
+    "ce_entry_id": null,                    // Set after CE entry creation
+    "ce_entry_created_at": null,            // Timestamp when CE entry was created
+    "deduction_account_id": "ba_xxx"        // Account from which TDS will be deducted
+}</code></pre>
+
+      <h4>8.2.3 Implementation Code</h4>
+      <pre><code>// internal/app/tds/metadata_service.go
+
+const (
+    MetaNameTDSCalculation = "tds_calculation"
+)
+
+type TDSMetadata struct {
+    GrossAmount       int64   `json:"gross_amount"`
+    TDSCategoryID     int     `json:"tds_category_id"`
+    TDSCategoryCode   string  `json:"tds_category_code"`
+    TDSRate           float64 `json:"tds_rate"`
+    IsLDCApplied      bool    `json:"is_ldc_applied"`
+    TDSAmount         int64   `json:"tds_amount"`
+    NetAmount         int64   `json:"net_amount"`
+    CalculationID     string  `json:"calculation_id"`
+    ContactPAN        string  `json:"contact_pan"`
+    CEEntryStatus     string  `json:"ce_entry_status"`
+    CEEntryID         string  `json:"ce_entry_id,omitempty"`
+    CEEntryCreatedAt  int64   `json:"ce_entry_created_at,omitempty"`
+    DeductionAccountID string `json:"deduction_account_id"`
+}
+
+func (s *TDSService) SaveTDSMetadata(ctx context.Context, payoutID string, tdsCalc *complianceEngine.TDSCalculationResponse) error {
+    metadata := &TDSMetadata{
+        GrossAmount:     tdsCalc.GrossAmount,
+        TDSCategoryID:   tdsCalc.TDSCategory.ID,
+        TDSCategoryCode: tdsCalc.TDSCategory.Code,
+        TDSRate:         tdsCalc.TDSRate,
+        IsLDCApplied:    tdsCalc.IsLDCApplied,
+        TDSAmount:       tdsCalc.TDSAmount,
+        NetAmount:       tdsCalc.NetAmount,
+        CalculationID:   tdsCalc.CalculationID,
+        ContactPAN:      tdsCalc.ContactPAN,
+        CEEntryStatus:   "PENDING",
+    }
+    
+    metaValue, _ := json.Marshal(metadata)
+    
+    payoutMeta := &payoutMetaPermanent.PayoutMetaPermanent{
+        PayoutID:  payoutID,
+        MetaName:  MetaNameTDSCalculation,
+        MetaValue: metaValue,
+    }
+    
+    return s.metaRepo.Create(ctx, payoutMeta)
+}
+
+func (s *TDSService) GetTDSMetadata(ctx context.Context, payoutID string) (*TDSMetadata, error) {
+    meta, err := s.metaRepo.FindByPayoutIDAndMetaName(ctx, payoutID, MetaNameTDSCalculation)
+    if err != nil {
+        return nil, err
+    }
+    
+    var tdsMetadata TDSMetadata
+    if err := json.Unmarshal(meta.MetaValue, &tdsMetadata); err != nil {
+        return nil, err
+    }
+    
+    return &tdsMetadata, nil
+}
+
+func (s *TDSService) UpdateCEEntryStatus(ctx context.Context, payoutID, entryID, status string) error {
+    tdsMetadata, err := s.GetTDSMetadata(ctx, payoutID)
+    if err != nil {
+        return err
+    }
+    
+    tdsMetadata.CEEntryStatus = status
+    tdsMetadata.CEEntryID = entryID
+    tdsMetadata.CEEntryCreatedAt = time.Now().Unix()
+    
+    metaValue, _ := json.Marshal(tdsMetadata)
+    
+    return s.metaRepo.UpdateMetaValue(ctx, payoutID, MetaNameTDSCalculation, metaValue)
+}</code></pre>
+
+      <h3>8.3 Settings Storage Clarification</h3>
+      
+      <div class="callout callout-warning">
+        <div class="callout-title">⚠️ Settings Location: API Service Settings Table</div>
+        <p>TDS Payment and Filing settings are stored in the <strong>API service's settings table</strong> (API Prod / API Monolith), specifically in the <strong>Business Profile &gt; Tax Details</strong> section. This is where existing TDS-related merchant information (TAN, PAN, merchant address) is already stored.</p>
+      </div>
+
+      <h4>8.3.1 Existing Settings Location</h4>
+      <pre><code>Service: API (api-monolith / api-prod)
+Table: settings
+Section: Business Profile > Tax Details
+
+Current TDS-related fields already stored:
+├── merchant_tan         - TAN for TDS filing
+├── merchant_pan         - PAN of deductor
+├── merchant_address     - Registered address for filing
+├── gstin               - GST registration number
+└── business_type       - Entity type
+
+NEW fields to be added:
+├── tds_payment_enabled        - Boolean flag to enable TDS option in payout flow
+├── tds_filing_enabled         - Boolean flag to enable TDS filing via Compliance Engine
+├── tds_filing_onboarding_date - Unix timestamp when filing was enabled
+└── tds_quarter_start          - Quarter start date for bulk import calculation</code></pre>
+
+      <h4>8.3.2 Settings Access Pattern</h4>
+      <pre><code>// Payouts service calls API service to check TDS settings
+// internal/app/settings/tds_settings.go
+
+type TDSSettingsFromAPI struct {
+    TDSPaymentEnabled       bool   `json:"tds_payment_enabled"`
+    TDSFilingEnabled        bool   `json:"tds_filing_enabled"`
+    TDSFilingOnboardingDate int64  `json:"tds_filing_onboarding_date"`
+    MerchantTAN             string `json:"merchant_tan"`
+    MerchantPAN             string `json:"merchant_pan"`
+    MerchantAddress         string `json:"merchant_address"`
+}
+
+func (c *SettingsCore) GetTDSSettingsFromAPI(ctx context.Context, merchantID string) (*TDSSettingsFromAPI, error) {
+    // Call API service to get business profile / tax details
+    response, err := c.apiClient.GetMerchantTaxDetails(ctx, merchantID)
+    if err != nil {
+        return nil, err
+    }
+    
+    return &TDSSettingsFromAPI{
+        TDSPaymentEnabled:       response.TaxDetails.TDSPaymentEnabled,
+        TDSFilingEnabled:        response.TaxDetails.TDSFilingEnabled,
+        TDSFilingOnboardingDate: response.TaxDetails.TDSFilingOnboardingDate,
+        MerchantTAN:             response.TaxDetails.TAN,
+        MerchantPAN:             response.BusinessProfile.PAN,
+        MerchantAddress:         response.BusinessProfile.RegisteredAddress,
+    }, nil
+}
+
+func (c *SettingsCore) IsTDSPaymentEnabled(ctx context.Context, merchantID string) (bool, error) {
+    settings, err := c.GetTDSSettingsFromAPI(ctx, merchantID)
+    if err != nil {
+        return false, err
+    }
+    return settings.TDSPaymentEnabled, nil
+}</code></pre>
+
+      <h4>8.3.3 "Set up TDS" Screen Integration</h4>
+      <pre><code>// Dashboard "Set up TDS" screen in merchant settings will:
+// 1. Call API service to update tax_details with tds_payment_enabled = true
+// 2. Call API service to update tax_details with tds_filing_enabled = true
+// 3. Store onboarding_date when filing is enabled
+
+// API Service endpoint (existing pattern)
+PUT /v1/merchants/{merchant_id}/settings/tax_details
+
+Request:
+{
+    "tds_payment_enabled": true,
+    "tds_filing_enabled": true,
+    "tds_filing_onboarding_date": 1737216000
+}
+
+// Payouts service will query this when processing payout requests with TDS</code></pre>
+
+      <h3>8.4 Module Structure</h3>
+      <pre><code>internal/app/tds/
+├── constants.go           # TDS-related constants
+├── model.go               # TDSPayoutMetadata model (for payout_meta_permanent)
+├── repo.go                # Database operations using payout_meta_permanent
+├── core.go                # Business logic
+├── service.go             # TDS service (validation, calculation orchestration)
+├── validation.go          # PAN validation, amount validation
+├── metadata_service.go    # payout_meta_permanent operations
+├── bulk_import.go         # CSV parsing and validation
+└── reversal_integration.go # Integration helpers for reversals</code></pre>
+
+      <h3>8.5 Compliance Engine Client</h3>
+      <pre><code>pkg/complianceEngine/
+├── client.go              # HTTP client
+├── config.go              # Configuration
+├── mock.go                # Mock for testing
+├── categories.go          # GetTDSCategories
+├── transaction.go         # Unified TDS transaction API (calculate + create entry)
+├── reversal.go            # NotifyReversal
+└── errors.go              # CE-specific error handling</code></pre>
+
+      <h3>8.6 Job Handlers for Async Processing</h3>
+      <pre><code>internal/job/
+├── tds_entry_creation.go        # Consumer for TDS entry creation (post payout PROCESSED)
+├── tds_reversal_notification.go # Consumer for reversal notification
+└── ... existing files ...</code></pre>
+
+      <h3>8.7 Payout Status Change Handler</h3>
+      <pre><code>// When payout status changes to PROCESSED, create TDS entry in CE
+
+func (c *Core) OnPayoutProcessed(ctx context.Context, payout *Payout) error {
+    // Check if payout has TDS metadata
+    tdsMetadata, err := c.tdsService.GetTDSMetadata(ctx, payout.ID)
+    if err != nil || tdsMetadata == nil {
+        return nil // No TDS for this payout
+    }
+    
+    // Queue job to create TDS entry in Compliance Engine
+    job := &TDSEntryCreationJob{
+        PayoutID:      payout.ID,
+        MerchantID:    payout.MerchantID,
+        TDSMetadata:   tdsMetadata,
+        ProcessedAt:   time.Now().Unix(),
+    }
+    
+    return c.kafkaProducer.Publish(ctx, "tds-entry-creation", job)
+}
+
+// Job handler
+func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreationJob) error {
+    // Call CE2 with create_entry: true
+    request := &complianceEngine.TDSTransactionRequest{
+        MerchantID:      job.MerchantID,
+        PayoutID:        job.PayoutID,
+        GrossAmount:     job.TDSMetadata.GrossAmount,
+        TDSCategoryID:   job.TDSMetadata.TDSCategoryID,
+        TDSAmount:       job.TDSMetadata.TDSAmount,
+        NetAmount:       job.TDSMetadata.NetAmount,
+        ContactPAN:      job.TDSMetadata.ContactPAN,
+        CreateEntry:     true,  // This time create the entry
+        DeductionAccountID: job.TDSMetadata.DeductionAccountID,
+    }
+    
+    response, err := h.ceClient.CreateTDSEntry(ctx, request)
+    if err != nil {
+        // Retry logic with exponential backoff
+        return err
+    }
+    
+    // Update TDS metadata with CE entry ID and status
+    return h.tdsService.UpdateCEEntryStatus(ctx, job.PayoutID, response.EntryID, "CREATED")
+}</code></pre>
+
+      <h3>8.8 Integration Points Summary</h3>
+      <table>
+        <tr>
+          <th>File</th>
+          <th>Change</th>
+          <th>Purpose</th>
+        </tr>
+        <tr>
+          <td><code>internal/app/dtos/payoutCreate.go</code></td>
+          <td>TDS field already exists</td>
+          <td>Accept TDS details in payout request</td>
+        </tr>
+        <tr>
+          <td><code>internal/app/dtos/payoutDetails.go</code></td>
+          <td>Extend TDSDetails struct</td>
+          <td>Support BB+ TDS fields</td>
+        </tr>
+        <tr>
+          <td><code>internal/app/payouts/core.go</code></td>
+          <td>Add TDS middleware call</td>
+          <td>Process TDS before payout creation</td>
+        </tr>
+        <tr>
+          <td><code>internal/app/payoutMetaPermanent/</code></td>
+          <td>Use existing table</td>
+          <td>Store TDS metadata without schema change</td>
+        </tr>
+        <tr>
+          <td><code>internal/app/settings/tds_settings.go</code></td>
+          <td>New file</td>
+          <td>Query API service for TDS settings</td>
+        </tr>
+        <tr>
+          <td><code>internal/app/reversals/core.go</code></td>
+          <td>Add CE reversal notification</td>
+          <td>Notify CE when payout is reversed</td>
+        </tr>
+        <tr>
+          <td><code>internal/controllers/tdsController.go</code></td>
+          <td>New file</td>
+          <td>TDS API endpoints (categories, calculate)</td>
+        </tr>
+        <tr>
+          <td><code>internal/routing/router/tds_routes.go</code></td>
+          <td>New file</td>
+          <td>TDS route definitions</td>
+        </tr>
+        <tr>
+          <td><code>internal/job/tds_entry_creation.go</code></td>
+          <td>New file</td>
+          <td>Async CE entry creation job</td>
+        </tr>
+      </table>
+
+      <!-- Section 9: Error Handling -->
+      <h2 id="error-handling">9. Error Handling</h2>
+
+      <h3>9.1 TDS Validation Errors</h3>
+      <table>
+        <tr>
+          <th>Error Code</th>
+          <th>Description</th>
+          <th>User Message</th>
+        </tr>
+        <tr>
+          <td><code>TDS_DISABLED</code></td>
+          <td>TDS not enabled for merchant</td>
+          <td>TDS feature is not enabled for your account</td>
+        </tr>
+        <tr>
+          <td><code>INVALID_CATEGORY</code></td>
+          <td>Invalid TDS category ID</td>
+          <td>Invalid TDS category selected</td>
+        </tr>
+        <tr>
+          <td><code>PAN_REQUIRED</code></td>
+          <td>Contact PAN is missing</td>
+          <td>Please update PAN for this vendor contact</td>
+        </tr>
+        <tr>
+          <td><code>INVALID_PAN_FORMAT</code></td>
+          <td>PAN format is incorrect</td>
+          <td>Invalid PAN format. Expected: ABCDE1234F</td>
+        </tr>
+        <tr>
+          <td><code>AMOUNT_MISMATCH</code></td>
+          <td>Payout amount ≠ calculated net</td>
+          <td>Payout amount does not match calculated net amount</td>
+        </tr>
+      </table>
+
+      <h3>9.2 CE Integration Errors</h3>
+      <table>
+        <tr>
+          <th>Scenario</th>
+          <th>Handling</th>
+        </tr>
+        <tr>
+          <td>CE unavailable during calculate</td>
+          <td>Show error, allow retry</td>
+        </tr>
+        <tr>
+          <td>CE unavailable during entry creation</td>
+          <td>Queue for async retry (up to 3 attempts)</td>
+        </tr>
+        <tr>
+          <td>CE unavailable during reversal</td>
+          <td>Queue for async retry, alert if persists</td>
+        </tr>
+        <tr>
+          <td>Max retries exhausted</td>
+          <td>Mark as FAILED, Slack alert, manual intervention</td>
+        </tr>
+      </table>
+
+      <!-- Section 10: Rollout -->
+      <h2 id="rollout">10. Migration & Rollout Plan</h2>
+
+      <h3>Phase 1: Foundation (Week 1-2)</h3>
+      <ul>
+        <li>Create <code>tds_payout_metadata</code> table</li>
+        <li>Create <code>tds_bulk_imports</code> table</li>
+        <li>Implement settings storage for TDS flags</li>
+        <li>Implement Compliance Engine client</li>
+        <li>Feature flag: <code>tds_payment_enabled_globally = false</code></li>
+      </ul>
+
+      <h3>Phase 2: Payout Flow (Week 3-4)</h3>
+      <ul>
+        <li>Add TDS calculation proxy endpoint</li>
+        <li>Integrate TDS flow in payout creation</li>
+        <li>Add CE entry creation on payout PROCESSED</li>
+        <li>Testing with internal merchants</li>
+      </ul>
+
+      <h3>Phase 3: Reversal Handling (Week 5)</h3>
+      <ul>
+        <li>Add CE notification on payout reversal</li>
+        <li>Implement async retry mechanism</li>
+        <li>Add alerting and monitoring</li>
+      </ul>
+
+      <h3>Phase 4: Bulk Import (Week 6)</h3>
+      <ul>
+        <li>Implement CSV upload and validation</li>
+        <li>Add import status tracking</li>
+        <li>Integration testing</li>
+      </ul>
+
+      <h3>Phase 5: GA Rollout (Week 7-8)</h3>
+      <ul>
+        <li>Enable for pilot merchants</li>
+        <li>Monitor and iterate</li>
+        <li>Gradual rollout to all merchants</li>
+      </ul>
+
+      <h3>Feature Flags (Splitz)</h3>
+      <table>
+        <tr>
+          <th>Flag</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+        <tr>
+          <td><code>tds_payment_enabled_globally</code></td>
+          <td>Master switch for TDS feature</td>
+          <td>false</td>
+        </tr>
+        <tr>
+          <td><code>tds_filing_enabled_globally</code></td>
+          <td>Master switch for TDS filing</td>
+          <td>false</td>
+        </tr>
+        <tr>
+          <td><code>tds_bulk_import_enabled</code></td>
+          <td>Enable bulk import feature</td>
+          <td>false</td>
+        </tr>
+      </table>
+
+      <!-- Section 11: Open Questions -->
+      <h2 id="open-questions">11. Open Questions</h2>
+
+      <div class="callout callout-warning">
+        <div class="callout-title">❓ Items Requiring Confirmation</div>
+        <ol>
+          <li><strong>CE2 API Confirmation:</strong> Confirm the unified <code>/tds/transaction</code> API contract with Compliance team</li>
+          <li><strong>LDC Certificate Upload:</strong> Where is LDC uploaded - Contact Service or vendor-experience?</li>
+          <li><strong>Calculation Validity:</strong> How long should a calculation quote be valid? (suggested: 1 hour)</li>
+          <li><strong>Bulk Import Limits:</strong> Max records per bulk import? (suggested: 10,000 records)</li>
+          <li><strong>Idempotency:</strong> Should CE entry creation be idempotent based on payout_id?</li>
+          <li><strong>Kafka Topic Configuration:</strong> Confirm partition count and retention policy</li>
+          <li><strong>PAN Source:</strong> Should PAN be fetched from Contact Service or passed in payout request?</li>
+          <li><strong>Error Recovery:</strong> What is the SOP if TDS entry creation fails after max retries?</li>
+          <li><strong>Business Profile API:</strong> Confirm exact API endpoint for updating Tax Details section with TDS settings</li>
+          <li><strong>Aggregator API Access:</strong> Confirm Compliance Engine's authentication/authorization to call the Merchant Info Aggregator API</li>
+        </ol>
+      </div>
+
+      <!-- Section 12: Resolved -->
+      <h2 id="resolved">12. Resolved Decisions</h2>
+
+      <table>
+        <tr>
+          <th>Decision</th>
+          <th>Resolution</th>
+        </tr>
+        <tr>
+          <td>Single vs Multiple CE2 APIs</td>
+          <td><strong>Single unified API</strong> with <code>create_entry</code> boolean flag</td>
+        </tr>
+        <tr>
+          <td>LDC validation ownership</td>
+          <td><strong>CE2 handles LDC validation</strong> - fetches LDC, returns standard rate with justification if no active LDC</td>
+        </tr>
+        <tr>
+          <td>Entry creation timing</td>
+          <td><strong>Async via Kafka queue</strong> after payout PROCESSED status</td>
+        </tr>
+        <tr>
+          <td>Payouts API changes</td>
+          <td><strong>Extend existing</strong> <code>/v1/payouts</code> with optional <code>tds</code> metadata block containing <code>tds_category_id</code> and <code>is_ldc_applicable</code></td>
+        </tr>
+        <tr>
+          <td>TDS calculation validation</td>
+          <td>BB+ calls CE2 with <code>create_entry=false</code> to validate before payout creation</td>
+        </tr>
+        <tr>
+          <td>TDS Middleware Layer</td>
+          <td>When payout request contains TDS details, a <strong>TDS middleware</strong> calls CE2 to calculate TDS before payout creation continues</td>
+        </tr>
+        <tr>
+          <td>TDS Metadata Storage</td>
+          <td><strong>Use existing <code>payout_meta_permanent</code> table</strong> with JSON <code>meta_value</code> - NO schema changes required to core payouts table</td>
+        </tr>
+        <tr>
+          <td>Settings storage</td>
+          <td><strong>Business Profile / Tax Details</strong> section in API service settings table (same location as TAN, PAN, merchant address)</td>
+        </tr>
+        <tr>
+          <td>Compliance Engine data provisioning</td>
+          <td><strong>Merchant Info Aggregator API</strong> in Payouts service that combines settings + deductor details + account info from multiple sources</td>
+        </tr>
+        <tr>
+          <td>"Set up TDS" screen</td>
+          <td>Located in merchant dashboard settings, updates <strong>API service's tax_details</strong> with <code>tds_payment_enabled</code> and <code>tds_filing_enabled</code> flags</td>
+        </tr>
+        <tr>
+          <td>Code location</td>
+          <td>TDS module within <code>payouts</code> service, not a separate microservice</td>
+        </tr>
+      </table>
+
+      <hr style="margin: 48px 0; border: 0; border-top: 2px solid var(--border);" />
+
+      <div style="text-align: center; color: var(--muted); font-size: 14px;">
+        <p><strong>Document:</strong> TDS_BB_Plus_Tech_Spec_V2_Complete.html</p>
+        <p><strong>Last Updated:</strong> January 23, 2026</p>
+        <p><strong>Version:</strong> 2.1</p>
+      </div>
+    </div>
+  </body>
+</html>
