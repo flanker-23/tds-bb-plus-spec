@@ -2351,15 +2351,14 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
 
     <script>
       // ============ Cloud Storage Configuration ============
-      // Using GitHub raw file for cloud persistence
-      const GITHUB_REPO = 'flanker-23/tds-bb-plus-spec';
-      const COMMENTS_FILE = 'comments.json';
-      const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${COMMENTS_FILE}`;
+      // Using JSONBlob.com for automatic cloud sync (100% free, no auth needed)
+      const BLOB_ID = '019bfdde-1309-7a29-a405-8cb5bca914da';
+      const BLOB_API = 'https://jsonblob.com/api/jsonBlob/' + BLOB_ID;
       
       // ============ Comment System ============
       const STORAGE_KEY = 'tds_spec_comments';
       const USER_KEY = 'tds_spec_user';
-      const SYNC_INTERVAL = 30000; // Sync every 30 seconds
+      const SYNC_INTERVAL = 5000; // Sync every 5 seconds for real-time feel
       
       let comments = [];
       let currentUser = localStorage.getItem(USER_KEY);
@@ -2367,12 +2366,13 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
       let selectedText = '';
       let isSyncing = false;
       let syncTimer = null;
+      let lastSyncVersion = 0;
 
       // Initialize
       document.addEventListener('DOMContentLoaded', () => {
         loadComments();
         setupEventListeners();
-        startPeriodicSync();
+        initCloudSync();
         
         // Show name modal if user hasn't set name
         if (!currentUser) {
@@ -2403,7 +2403,7 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         document.getElementById('toggle-sidebar').addEventListener('click', toggleSidebar);
         
         // Sync/Export/Import buttons
-        document.getElementById('sync-cloud-btn').addEventListener('click', showSyncInstructions);
+        document.getElementById('sync-cloud-btn').addEventListener('click', () => syncToCloud(true));
         document.getElementById('export-btn').addEventListener('click', exportComments);
         document.getElementById('import-btn').addEventListener('click', importComments);
         
@@ -2430,56 +2430,93 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         });
       }
 
-      // Periodic sync for real-time updates
-      function startPeriodicSync() {
-        syncFromCloud(); // Initial sync
+      // Initialize cloud sync
+      async function initCloudSync() {
+        showSyncStatus('🔄 Connecting...', false);
+        await syncFromCloud(); // Initial load from cloud
         syncTimer = setInterval(syncFromCloud, SYNC_INTERVAL);
       }
 
+      // Pull comments from cloud (automatic)
       async function syncFromCloud() {
         if (isSyncing) return;
         
         try {
-          // Add cache-busting query param
-          const response = await fetch(GITHUB_RAW_URL + '?t=' + Date.now());
+          const response = await fetch(BLOB_API, {
+            headers: { 'Accept': 'application/json' }
+          });
+          
           if (response.ok) {
             const data = await response.json();
-            if (data && Array.isArray(data)) {
-              mergeComments(data);
-              showSyncStatus('✓ Synced', false);
+            if (data && Array.isArray(data.comments)) {
+              const version = data.version || 0;
+              if (version !== lastSyncVersion) {
+                lastSyncVersion = version;
+                mergeComments(data.comments);
+              }
             }
           }
         } catch (e) {
-          // File might not exist yet, that's okay
-          console.log('Cloud sync: No remote comments found');
+          console.log('Cloud sync read failed:', e.message);
         }
       }
 
-      function mergeComments(remoteComments) {
-        const existingIds = new Set(comments.map(c => c.id));
-        let hasNew = false;
+      // Push comments to cloud (automatic)
+      async function syncToCloud(showStatus = false) {
+        if (isSyncing) return;
+        isSyncing = true;
         
-        // Add remote comments we don't have locally
+        try {
+          lastSyncVersion = Date.now();
+          const payload = {
+            comments: comments,
+            version: lastSyncVersion,
+            lastUpdated: new Date().toISOString()
+          };
+          
+          const response = await fetch(BLOB_API, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          
+          if (response.ok) {
+            if (showStatus) showSyncStatus('✓ Saved!', false);
+          } else {
+            throw new Error('Sync failed');
+          }
+        } catch (e) {
+          console.log('Cloud sync write failed:', e.message);
+          if (showStatus) showSyncStatus('⚠ Sync failed', true);
+        }
+        
+        isSyncing = false;
+      }
+
+      function mergeComments(remoteComments) {
+        const localIds = new Set(comments.map(c => c.id));
+        const remoteIds = new Set(remoteComments.map(c => c.id));
+        let hasChanges = false;
+        
+        // Add new remote comments
         remoteComments.forEach(c => {
-          if (!existingIds.has(c.id)) {
+          if (!localIds.has(c.id)) {
             comments.push(c);
-            hasNew = true;
+            hasChanges = true;
           }
         });
         
-        // Also check for remotely deleted comments
-        const remoteIds = new Set(remoteComments.map(c => c.id));
-        const toRemove = comments.filter(c => !remoteIds.has(c.id) && c.synced);
-        if (toRemove.length > 0) {
-          comments = comments.filter(c => remoteIds.has(c.id) || !c.synced);
-          hasNew = true;
-        }
+        // Sync deletions - if remote doesn't have a comment we have, remove it
+        const beforeCount = comments.length;
+        comments = comments.filter(c => remoteIds.has(c.id));
+        if (comments.length !== beforeCount) hasChanges = true;
         
-        if (hasNew) {
+        if (hasChanges) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
           renderComments();
           clearHighlights();
           setTimeout(() => comments.forEach(highlightCommentedText), 100);
+          showSyncStatus('✓ Updated!', false);
         }
       }
 
@@ -2707,8 +2744,11 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
 
       // Storage functions
       function saveComments() {
+        // Mark new comments as synced
+        comments.forEach(c => c.synced = true);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
-        syncToCloud();
+        // Auto-sync to cloud
+        syncToCloud(true);
       }
 
       function loadComments() {
@@ -2727,18 +2767,6 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         }, 100);
       }
 
-      // Show sync instructions modal
-      function showSyncInstructions() {
-        const json = JSON.stringify(comments, null, 2);
-        
-        // Copy to clipboard
-        navigator.clipboard.writeText(json).then(() => {
-          alert(`📋 Comments JSON copied to clipboard!\n\nTo sync to cloud for all users:\n\n1. Open Terminal\n2. cd ~/Desktop/tds-bb-plus-spec\n3. Paste the JSON into comments.json\n4. Run: git add . && git commit -m "Update comments" && git push\n\nOr use the Export button to download the file.`);
-        }).catch(() => {
-          alert('Copy the comments from the downloaded file and push to GitHub to sync with other users.');
-          exportComments();
-        });
-      }
 
       // Export comments
       function exportComments() {
