@@ -2012,5 +2012,667 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         <p><strong>Version:</strong> 2.1</p>
       </div>
     </div>
+
+    <!-- Comment System UI -->
+    <div id="comment-tooltip" class="comment-tooltip hidden">
+      <button id="add-comment-btn">💬 Add Comment</button>
+    </div>
+
+    <div id="comment-sidebar" class="comment-sidebar">
+      <div class="sidebar-header">
+        <h3>💬 Comments <span id="comment-count">(0)</span></h3>
+        <button id="toggle-sidebar" class="toggle-btn">◀</button>
+      </div>
+      <div id="comments-list" class="comments-list"></div>
+    </div>
+
+    <div id="comment-modal" class="modal hidden">
+      <div class="modal-content">
+        <h3 id="modal-title">Add Comment</h3>
+        <div id="selected-text-preview" class="selected-text-preview"></div>
+        <textarea id="comment-text" placeholder="Write your comment..." rows="4"></textarea>
+        <div class="modal-actions">
+          <button id="cancel-comment" class="btn-secondary">Cancel</button>
+          <button id="submit-comment" class="btn-primary">Submit</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="name-modal" class="modal">
+      <div class="modal-content">
+        <h3>👋 Welcome! Enter your name</h3>
+        <p class="modal-subtitle">Your name will be shown with your comments</p>
+        <input type="text" id="user-name-input" placeholder="Your name" />
+        <div class="modal-actions">
+          <button id="save-name" class="btn-primary">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      /* Comment System Styles */
+      .comment-tooltip {
+        position: absolute;
+        background: var(--accent);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: fadeIn 0.2s ease;
+      }
+      .comment-tooltip.hidden { display: none; }
+      .comment-tooltip button {
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .comment-tooltip button:hover { opacity: 0.9; }
+
+      .comment-sidebar {
+        position: fixed;
+        right: 0;
+        top: 0;
+        width: 350px;
+        height: 100vh;
+        background: white;
+        border-left: 1px solid var(--border);
+        box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.3s ease;
+      }
+      .comment-sidebar.collapsed {
+        transform: translateX(310px);
+      }
+      .sidebar-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--section-bg);
+      }
+      .sidebar-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: var(--fg);
+      }
+      .toggle-btn {
+        background: none;
+        border: 1px solid var(--border);
+        padding: 6px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .comment-sidebar.collapsed .toggle-btn { transform: rotate(180deg); }
+      
+      .comments-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+      }
+      .comment-item {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: box-shadow 0.2s;
+      }
+      .comment-item:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      }
+      .comment-item.active {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+      }
+      .comment-quote {
+        font-size: 12px;
+        color: var(--muted);
+        background: white;
+        padding: 8px;
+        border-radius: 4px;
+        border-left: 3px solid var(--accent);
+        margin-bottom: 8px;
+        max-height: 60px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .comment-body {
+        font-size: 14px;
+        color: var(--fg);
+        margin-bottom: 8px;
+      }
+      .comment-meta {
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .comment-author {
+        font-weight: 600;
+        color: var(--accent-dark);
+      }
+      .delete-comment {
+        background: none;
+        border: none;
+        color: var(--error);
+        cursor: pointer;
+        font-size: 11px;
+        opacity: 0.6;
+      }
+      .delete-comment:hover { opacity: 1; }
+
+      .highlighted-text {
+        background: rgba(59, 130, 246, 0.15);
+        border-bottom: 2px solid var(--accent);
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .highlighted-text:hover {
+        background: rgba(59, 130, 246, 0.25);
+      }
+      .highlighted-text.active {
+        background: rgba(59, 130, 246, 0.35);
+      }
+
+      .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1001;
+      }
+      .modal.hidden { display: none; }
+      .modal-content {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 450px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      }
+      .modal-content h3 {
+        margin: 0 0 8px 0;
+        color: var(--fg);
+      }
+      .modal-subtitle {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 0 0 16px 0;
+      }
+      .selected-text-preview {
+        background: var(--code-bg);
+        border-left: 3px solid var(--accent);
+        padding: 10px 12px;
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 12px;
+        border-radius: 4px;
+        max-height: 80px;
+        overflow: hidden;
+      }
+      .modal-content textarea,
+      .modal-content input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 14px;
+        font-family: inherit;
+        resize: none;
+      }
+      .modal-content textarea:focus,
+      .modal-content input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 16px;
+      }
+      .btn-primary, .btn-secondary {
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: white;
+      }
+      .btn-primary:hover { background: var(--accent-dark); }
+      .btn-secondary {
+        background: var(--section-bg);
+        color: var(--fg);
+        border: 1px solid var(--border);
+      }
+      .btn-secondary:hover { background: var(--border); }
+
+      .no-comments {
+        text-align: center;
+        color: var(--muted);
+        padding: 40px 20px;
+        font-size: 14px;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Adjust main content for sidebar */
+      .container {
+        margin-right: 370px;
+        transition: margin-right 0.3s ease;
+      }
+      .sidebar-collapsed .container {
+        margin-right: 60px;
+      }
+
+      @media (max-width: 900px) {
+        .comment-sidebar { width: 100%; transform: translateX(100%); }
+        .comment-sidebar.open { transform: translateX(0); }
+        .container { margin-right: 0; }
+      }
+    </style>
+
+    <script>
+      // ============ Comment System ============
+      const STORAGE_KEY = 'tds_spec_comments';
+      const USER_KEY = 'tds_spec_user';
+      const JSONBIN_ID = null; // Will be created on first save
+      const JSONBIN_API = 'https://api.jsonbin.io/v3/b';
+      
+      let comments = [];
+      let currentUser = localStorage.getItem(USER_KEY);
+      let selectedRange = null;
+      let selectedText = '';
+
+      // Initialize
+      document.addEventListener('DOMContentLoaded', () => {
+        loadComments();
+        setupEventListeners();
+        
+        // Show name modal if user hasn't set name
+        if (!currentUser) {
+          document.getElementById('name-modal').classList.remove('hidden');
+        } else {
+          document.getElementById('name-modal').classList.add('hidden');
+        }
+      });
+
+      function setupEventListeners() {
+        // Text selection
+        document.querySelector('.container').addEventListener('mouseup', handleTextSelection);
+        
+        // Add comment button
+        document.getElementById('add-comment-btn').addEventListener('click', showCommentModal);
+        
+        // Modal actions
+        document.getElementById('cancel-comment').addEventListener('click', hideCommentModal);
+        document.getElementById('submit-comment').addEventListener('click', submitComment);
+        
+        // Name modal
+        document.getElementById('save-name').addEventListener('click', saveName);
+        document.getElementById('user-name-input').addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') saveName();
+        });
+        
+        // Sidebar toggle
+        document.getElementById('toggle-sidebar').addEventListener('click', toggleSidebar);
+        
+        // Close tooltip on click outside
+        document.addEventListener('mousedown', (e) => {
+          if (!e.target.closest('.comment-tooltip') && !e.target.closest('.modal')) {
+            hideTooltip();
+          }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            hideCommentModal();
+            hideTooltip();
+          }
+        });
+      }
+
+      function handleTextSelection(e) {
+        const selection = window.getSelection();
+        const text = selection.toString().trim();
+        
+        if (text.length > 3 && !e.target.closest('.comment-sidebar') && !e.target.closest('.modal')) {
+          selectedText = text;
+          selectedRange = selection.getRangeAt(0).cloneRange();
+          
+          const rect = selection.getRangeAt(0).getBoundingClientRect();
+          const tooltip = document.getElementById('comment-tooltip');
+          tooltip.style.top = `${rect.top + window.scrollY - 40}px`;
+          tooltip.style.left = `${rect.left + (rect.width / 2) - 60}px`;
+          tooltip.classList.remove('hidden');
+        }
+      }
+
+      function hideTooltip() {
+        document.getElementById('comment-tooltip').classList.add('hidden');
+      }
+
+      function showCommentModal() {
+        hideTooltip();
+        document.getElementById('selected-text-preview').textContent = `"${selectedText.substring(0, 150)}${selectedText.length > 150 ? '...' : ''}"`;
+        document.getElementById('comment-text').value = '';
+        document.getElementById('comment-modal').classList.remove('hidden');
+        document.getElementById('comment-text').focus();
+      }
+
+      function hideCommentModal() {
+        document.getElementById('comment-modal').classList.add('hidden');
+        selectedRange = null;
+        selectedText = '';
+      }
+
+      function saveName() {
+        const name = document.getElementById('user-name-input').value.trim();
+        if (name) {
+          currentUser = name;
+          localStorage.setItem(USER_KEY, name);
+          document.getElementById('name-modal').classList.add('hidden');
+        }
+      }
+
+      function submitComment() {
+        const commentText = document.getElementById('comment-text').value.trim();
+        if (!commentText || !selectedText) return;
+
+        // Create unique ID based on selected text
+        const textHash = hashCode(selectedText);
+        
+        const comment = {
+          id: Date.now().toString(),
+          textHash: textHash,
+          selectedText: selectedText.substring(0, 500),
+          comment: commentText,
+          author: currentUser,
+          timestamp: new Date().toISOString(),
+          sectionId: findNearestSectionId(selectedRange)
+        };
+
+        comments.push(comment);
+        saveComments();
+        renderComments();
+        highlightCommentedText(comment);
+        hideCommentModal();
+      }
+
+      function hashCode(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return hash.toString();
+      }
+
+      function findNearestSectionId(range) {
+        if (!range) return null;
+        let node = range.startContainer;
+        while (node && node !== document.body) {
+          if (node.nodeType === 1 && node.id) {
+            return node.id;
+          }
+          node = node.parentNode;
+        }
+        return null;
+      }
+
+      function highlightCommentedText(comment) {
+        // Find and highlight the text in the document
+        const walker = document.createTreeWalker(
+          document.querySelector('.container'),
+          NodeFilter.SHOW_TEXT,
+          null,
+          false
+        );
+
+        while (walker.nextNode()) {
+          const node = walker.currentNode;
+          const index = node.textContent.indexOf(comment.selectedText.substring(0, 50));
+          
+          if (index !== -1 && !node.parentElement.classList.contains('highlighted-text')) {
+            const span = document.createElement('span');
+            span.className = 'highlighted-text';
+            span.dataset.commentId = comment.id;
+            span.title = `${comment.author}: ${comment.comment.substring(0, 50)}...`;
+            
+            const range = document.createRange();
+            range.setStart(node, index);
+            range.setEnd(node, Math.min(index + comment.selectedText.length, node.textContent.length));
+            
+            try {
+              range.surroundContents(span);
+              span.addEventListener('click', () => scrollToComment(comment.id));
+              break;
+            } catch (e) {
+              // Range spans multiple elements, skip highlighting
+            }
+          }
+        }
+      }
+
+      function scrollToComment(commentId) {
+        const commentEl = document.querySelector(`.comment-item[data-id="${commentId}"]`);
+        if (commentEl) {
+          // Remove active from all
+          document.querySelectorAll('.comment-item').forEach(el => el.classList.remove('active'));
+          document.querySelectorAll('.highlighted-text').forEach(el => el.classList.remove('active'));
+          
+          // Add active to this one
+          commentEl.classList.add('active');
+          commentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          const highlight = document.querySelector(`.highlighted-text[data-comment-id="${commentId}"]`);
+          if (highlight) highlight.classList.add('active');
+        }
+      }
+
+      function scrollToHighlight(commentId) {
+        const highlight = document.querySelector(`.highlighted-text[data-comment-id="${commentId}"]`);
+        if (highlight) {
+          // Remove active from all
+          document.querySelectorAll('.comment-item').forEach(el => el.classList.remove('active'));
+          document.querySelectorAll('.highlighted-text').forEach(el => el.classList.remove('active'));
+          
+          // Add active
+          highlight.classList.add('active');
+          highlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          const commentEl = document.querySelector(`.comment-item[data-id="${commentId}"]`);
+          if (commentEl) commentEl.classList.add('active');
+        }
+      }
+
+      function deleteComment(id) {
+        if (!confirm('Delete this comment?')) return;
+        
+        comments = comments.filter(c => c.id !== id);
+        saveComments();
+        
+        // Remove highlight
+        const highlight = document.querySelector(`.highlighted-text[data-comment-id="${id}"]`);
+        if (highlight) {
+          const text = highlight.textContent;
+          highlight.replaceWith(text);
+        }
+        
+        renderComments();
+      }
+
+      function renderComments() {
+        const list = document.getElementById('comments-list');
+        document.getElementById('comment-count').textContent = `(${comments.length})`;
+        
+        if (comments.length === 0) {
+          list.innerHTML = `
+            <div class="no-comments">
+              <p>📝 No comments yet</p>
+              <p style="font-size: 12px;">Select text and click "Add Comment" to start a discussion</p>
+            </div>
+          `;
+          return;
+        }
+
+        // Sort by timestamp, newest first
+        const sorted = [...comments].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        list.innerHTML = sorted.map(c => `
+          <div class="comment-item" data-id="${c.id}" onclick="scrollToHighlight('${c.id}')">
+            <div class="comment-quote">"${escapeHtml(c.selectedText.substring(0, 100))}${c.selectedText.length > 100 ? '...' : ''}"</div>
+            <div class="comment-body">${escapeHtml(c.comment)}</div>
+            <div class="comment-meta">
+              <span><span class="comment-author">${escapeHtml(c.author)}</span> · ${formatDate(c.timestamp)}</span>
+              ${c.author === currentUser ? `<button class="delete-comment" onclick="event.stopPropagation(); deleteComment('${c.id}')">Delete</button>` : ''}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function formatDate(isoString) {
+        const date = new Date(isoString);
+        const now = new Date();
+        const diff = now - date;
+        
+        if (diff < 60000) return 'just now';
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+        if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+        
+        return date.toLocaleDateString();
+      }
+
+      function toggleSidebar() {
+        const sidebar = document.getElementById('comment-sidebar');
+        sidebar.classList.toggle('collapsed');
+        document.body.classList.toggle('sidebar-collapsed');
+      }
+
+      // Storage functions
+      function saveComments() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
+        // Also try to sync with remote storage
+        syncToRemote();
+      }
+
+      function loadComments() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          comments = JSON.parse(saved);
+        }
+        // Also try to load from remote
+        syncFromRemote();
+        renderComments();
+        
+        // Re-highlight all comments
+        setTimeout(() => {
+          comments.forEach(highlightCommentedText);
+        }, 100);
+      }
+
+      // Remote sync using localStorage broadcast for same-origin tabs
+      // For true cross-user persistence, you'd need a backend like Firebase or JSONBin
+      function syncToRemote() {
+        // Broadcast to other tabs
+        localStorage.setItem('tds_comments_sync', JSON.stringify({
+          timestamp: Date.now(),
+          comments: comments
+        }));
+      }
+
+      function syncFromRemote() {
+        // Listen for changes from other tabs
+        window.addEventListener('storage', (e) => {
+          if (e.key === 'tds_comments_sync') {
+            const data = JSON.parse(e.newValue);
+            if (data && data.comments) {
+              // Merge comments
+              const existingIds = new Set(comments.map(c => c.id));
+              data.comments.forEach(c => {
+                if (!existingIds.has(c.id)) {
+                  comments.push(c);
+                }
+              });
+              renderComments();
+              comments.forEach(highlightCommentedText);
+            }
+          }
+        });
+      }
+
+      // Export/Import for sharing
+      window.exportComments = function() {
+        const data = JSON.stringify(comments, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'tds-spec-comments.json';
+        a.click();
+      };
+
+      window.importComments = function() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const imported = JSON.parse(e.target.result);
+              const existingIds = new Set(comments.map(c => c.id));
+              imported.forEach(c => {
+                if (!existingIds.has(c.id)) {
+                  comments.push(c);
+                }
+              });
+              saveComments();
+              renderComments();
+              comments.forEach(highlightCommentedText);
+              alert(`Imported ${imported.length} comments!`);
+            } catch (err) {
+              alert('Invalid file format');
+            }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      };
+    </script>
   </body>
 </html>
