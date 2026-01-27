@@ -2024,6 +2024,11 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         <button id="toggle-sidebar" class="toggle-btn">◀</button>
       </div>
       <div id="comments-list" class="comments-list"></div>
+      <div class="sidebar-footer">
+        <button id="sync-cloud-btn" class="sync-btn" title="Sync comments to cloud">☁️ Sync to Cloud</button>
+        <button id="export-btn" class="sync-btn" title="Export comments">📥 Export</button>
+        <button id="import-btn" class="sync-btn" title="Import comments">📤 Import</button>
+      </div>
     </div>
 
     <div id="comment-modal" class="modal hidden">
@@ -2048,6 +2053,8 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         </div>
       </div>
     </div>
+
+    <div id="sync-status" class="sync-status">✓ Synced</div>
 
     <style>
       /* Comment System Styles */
@@ -2275,43 +2282,97 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         font-size: 14px;
       }
 
+      .sidebar-footer {
+        padding: 12px 16px;
+        border-top: 1px solid var(--border);
+        background: var(--section-bg);
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .sync-btn {
+        flex: 1;
+        min-width: 80px;
+        padding: 8px 12px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .sync-btn:hover {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+      }
+
       @keyframes fadeIn {
         from { opacity: 0; transform: translateY(-4px); }
         to { opacity: 1; transform: translateY(0); }
       }
 
       /* Adjust main content for sidebar */
-      .container {
+      body:not(.sidebar-collapsed) .container {
         margin-right: 370px;
         transition: margin-right 0.3s ease;
       }
-      .sidebar-collapsed .container {
+      body.sidebar-collapsed .container {
         margin-right: 60px;
+        transition: margin-right 0.3s ease;
       }
+
+      /* Sync indicator */
+      .sync-status {
+        position: fixed;
+        bottom: 20px;
+        right: 380px;
+        background: var(--success);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        opacity: 0;
+        transition: opacity 0.3s, right 0.3s;
+        z-index: 998;
+      }
+      .sync-status.show { opacity: 1; }
+      .sync-status.error { background: var(--error); }
+      body.sidebar-collapsed .sync-status { right: 70px; }
 
       @media (max-width: 900px) {
         .comment-sidebar { width: 100%; transform: translateX(100%); }
         .comment-sidebar.open { transform: translateX(0); }
-        .container { margin-right: 0; }
+        body .container { margin-right: 0 !important; }
+        .sync-status { right: 20px !important; }
       }
     </style>
 
     <script>
+      // ============ Cloud Storage Configuration ============
+      // Using GitHub raw file for cloud persistence
+      const GITHUB_REPO = 'flanker-23/tds-bb-plus-spec';
+      const COMMENTS_FILE = 'comments.json';
+      const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${COMMENTS_FILE}`;
+      
       // ============ Comment System ============
       const STORAGE_KEY = 'tds_spec_comments';
       const USER_KEY = 'tds_spec_user';
-      const JSONBIN_ID = null; // Will be created on first save
-      const JSONBIN_API = 'https://api.jsonbin.io/v3/b';
+      const SYNC_INTERVAL = 30000; // Sync every 30 seconds
       
       let comments = [];
       let currentUser = localStorage.getItem(USER_KEY);
       let selectedRange = null;
       let selectedText = '';
+      let isSyncing = false;
+      let syncTimer = null;
 
       // Initialize
       document.addEventListener('DOMContentLoaded', () => {
         loadComments();
         setupEventListeners();
+        startPeriodicSync();
         
         // Show name modal if user hasn't set name
         if (!currentUser) {
@@ -2341,6 +2402,11 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         // Sidebar toggle
         document.getElementById('toggle-sidebar').addEventListener('click', toggleSidebar);
         
+        // Sync/Export/Import buttons
+        document.getElementById('sync-cloud-btn').addEventListener('click', showSyncInstructions);
+        document.getElementById('export-btn').addEventListener('click', exportComments);
+        document.getElementById('import-btn').addEventListener('click', importComments);
+        
         // Close tooltip on click outside
         document.addEventListener('mousedown', (e) => {
           if (!e.target.closest('.comment-tooltip') && !e.target.closest('.modal')) {
@@ -2355,6 +2421,81 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
             hideTooltip();
           }
         });
+        
+        // Sync on page visibility change
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            syncFromCloud();
+          }
+        });
+      }
+
+      // Periodic sync for real-time updates
+      function startPeriodicSync() {
+        syncFromCloud(); // Initial sync
+        syncTimer = setInterval(syncFromCloud, SYNC_INTERVAL);
+      }
+
+      async function syncFromCloud() {
+        if (isSyncing) return;
+        
+        try {
+          // Add cache-busting query param
+          const response = await fetch(GITHUB_RAW_URL + '?t=' + Date.now());
+          if (response.ok) {
+            const data = await response.json();
+            if (data && Array.isArray(data)) {
+              mergeComments(data);
+              showSyncStatus('✓ Synced', false);
+            }
+          }
+        } catch (e) {
+          // File might not exist yet, that's okay
+          console.log('Cloud sync: No remote comments found');
+        }
+      }
+
+      function mergeComments(remoteComments) {
+        const existingIds = new Set(comments.map(c => c.id));
+        let hasNew = false;
+        
+        // Add remote comments we don't have locally
+        remoteComments.forEach(c => {
+          if (!existingIds.has(c.id)) {
+            comments.push(c);
+            hasNew = true;
+          }
+        });
+        
+        // Also check for remotely deleted comments
+        const remoteIds = new Set(remoteComments.map(c => c.id));
+        const toRemove = comments.filter(c => !remoteIds.has(c.id) && c.synced);
+        if (toRemove.length > 0) {
+          comments = comments.filter(c => remoteIds.has(c.id) || !c.synced);
+          hasNew = true;
+        }
+        
+        if (hasNew) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
+          renderComments();
+          clearHighlights();
+          setTimeout(() => comments.forEach(highlightCommentedText), 100);
+        }
+      }
+
+      function clearHighlights() {
+        document.querySelectorAll('.highlighted-text').forEach(el => {
+          const text = el.textContent;
+          el.replaceWith(text);
+        });
+      }
+
+      function showSyncStatus(message, isError) {
+        const status = document.getElementById('sync-status');
+        status.textContent = message;
+        status.classList.toggle('error', isError);
+        status.classList.add('show');
+        setTimeout(() => status.classList.remove('show'), 2000);
       }
 
       function handleTextSelection(e) {
@@ -2404,12 +2545,8 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         const commentText = document.getElementById('comment-text').value.trim();
         if (!commentText || !selectedText) return;
 
-        // Create unique ID based on selected text
-        const textHash = hashCode(selectedText);
-        
         const comment = {
-          id: Date.now().toString(),
-          textHash: textHash,
+          id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9),
           selectedText: selectedText.substring(0, 500),
           comment: commentText,
           author: currentUser,
@@ -2422,16 +2559,6 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
         renderComments();
         highlightCommentedText(comment);
         hideCommentModal();
-      }
-
-      function hashCode(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-          const char = str.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash;
-        }
-        return hash.toString();
       }
 
       function findNearestSectionId(range) {
@@ -2447,7 +2574,6 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
       }
 
       function highlightCommentedText(comment) {
-        // Find and highlight the text in the document
         const walker = document.createTreeWalker(
           document.querySelector('.container'),
           NodeFilter.SHOW_TEXT,
@@ -2455,9 +2581,11 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
           false
         );
 
+        const searchText = comment.selectedText.substring(0, 50);
+
         while (walker.nextNode()) {
           const node = walker.currentNode;
-          const index = node.textContent.indexOf(comment.selectedText.substring(0, 50));
+          const index = node.textContent.indexOf(searchText);
           
           if (index !== -1 && !node.parentElement.classList.contains('highlighted-text')) {
             const span = document.createElement('span');
@@ -2483,11 +2611,9 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
       function scrollToComment(commentId) {
         const commentEl = document.querySelector(`.comment-item[data-id="${commentId}"]`);
         if (commentEl) {
-          // Remove active from all
           document.querySelectorAll('.comment-item').forEach(el => el.classList.remove('active'));
           document.querySelectorAll('.highlighted-text').forEach(el => el.classList.remove('active'));
           
-          // Add active to this one
           commentEl.classList.add('active');
           commentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           
@@ -2499,11 +2625,9 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
       function scrollToHighlight(commentId) {
         const highlight = document.querySelector(`.highlighted-text[data-comment-id="${commentId}"]`);
         if (highlight) {
-          // Remove active from all
           document.querySelectorAll('.comment-item').forEach(el => el.classList.remove('active'));
           document.querySelectorAll('.highlighted-text').forEach(el => el.classList.remove('active'));
           
-          // Add active
           highlight.classList.add('active');
           highlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
           
@@ -2542,7 +2666,6 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
           return;
         }
 
-        // Sort by timestamp, newest first
         const sorted = [...comments].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         
         list.innerHTML = sorted.map(c => `
@@ -2585,67 +2708,52 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
       // Storage functions
       function saveComments() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
-        // Also try to sync with remote storage
-        syncToRemote();
+        syncToCloud();
       }
 
       function loadComments() {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-          comments = JSON.parse(saved);
+          try {
+            comments = JSON.parse(saved);
+          } catch (e) {
+            comments = [];
+          }
         }
-        // Also try to load from remote
-        syncFromRemote();
         renderComments();
         
-        // Re-highlight all comments
         setTimeout(() => {
           comments.forEach(highlightCommentedText);
         }, 100);
       }
 
-      // Remote sync using localStorage broadcast for same-origin tabs
-      // For true cross-user persistence, you'd need a backend like Firebase or JSONBin
-      function syncToRemote() {
-        // Broadcast to other tabs
-        localStorage.setItem('tds_comments_sync', JSON.stringify({
-          timestamp: Date.now(),
-          comments: comments
-        }));
-      }
-
-      function syncFromRemote() {
-        // Listen for changes from other tabs
-        window.addEventListener('storage', (e) => {
-          if (e.key === 'tds_comments_sync') {
-            const data = JSON.parse(e.newValue);
-            if (data && data.comments) {
-              // Merge comments
-              const existingIds = new Set(comments.map(c => c.id));
-              data.comments.forEach(c => {
-                if (!existingIds.has(c.id)) {
-                  comments.push(c);
-                }
-              });
-              renderComments();
-              comments.forEach(highlightCommentedText);
-            }
-          }
+      // Show sync instructions modal
+      function showSyncInstructions() {
+        const json = JSON.stringify(comments, null, 2);
+        
+        // Copy to clipboard
+        navigator.clipboard.writeText(json).then(() => {
+          alert(`📋 Comments JSON copied to clipboard!\n\nTo sync to cloud for all users:\n\n1. Open Terminal\n2. cd ~/Desktop/tds-bb-plus-spec\n3. Paste the JSON into comments.json\n4. Run: git add . && git commit -m "Update comments" && git push\n\nOr use the Export button to download the file.`);
+        }).catch(() => {
+          alert('Copy the comments from the downloaded file and push to GitHub to sync with other users.');
+          exportComments();
         });
       }
 
-      // Export/Import for sharing
-      window.exportComments = function() {
+      // Export comments
+      function exportComments() {
         const data = JSON.stringify(comments, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'tds-spec-comments.json';
+        a.download = 'comments.json';
         a.click();
-      };
+        showSyncStatus('📥 Exported', false);
+      }
 
-      window.importComments = function() {
+      // Import comments
+      function importComments() {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
@@ -2655,24 +2763,34 @@ func (h *TDSEntryCreationHandler) Handle(ctx context.Context, job *TDSEntryCreat
           reader.onload = (e) => {
             try {
               const imported = JSON.parse(e.target.result);
+              if (!Array.isArray(imported)) throw new Error('Invalid format');
+              
               const existingIds = new Set(comments.map(c => c.id));
+              let newCount = 0;
+              
               imported.forEach(c => {
                 if (!existingIds.has(c.id)) {
                   comments.push(c);
+                  newCount++;
                 }
               });
-              saveComments();
-              renderComments();
-              comments.forEach(highlightCommentedText);
-              alert(`Imported ${imported.length} comments!`);
+              
+              if (newCount > 0) {
+                saveComments();
+                renderComments();
+                clearHighlights();
+                setTimeout(() => comments.forEach(highlightCommentedText), 100);
+              }
+              
+              showSyncStatus(`📤 Imported ${newCount} new`, false);
             } catch (err) {
-              alert('Invalid file format');
+              alert('Invalid file format. Please use a valid comments.json file.');
             }
           };
           reader.readAsText(file);
         };
         input.click();
-      };
+      }
     </script>
   </body>
 </html>
