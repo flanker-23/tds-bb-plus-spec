@@ -871,6 +871,209 @@ func (s *TDSAggregatorService) validateMerchantDetails(bp *BusinessProfile, td *
     return nil
 }</code></pre>
 
+      <h3>2.5 TDS Enablement Status API</h3>
+      <div class="callout">
+        <div class="callout-title">🔍 Simple Status Check API</div>
+        <p>A lightweight API to check if TDS Payment and TDS Filing features are enabled for a merchant's payouts. Used by Compliance Engine to determine if TDS processing is applicable.</p>
+      </div>
+
+      <h4>API Contract</h4>
+      <div class="api-block">
+        <div class="api-method">GET</div>
+        <div class="api-endpoint">/internal/v1/tds/merchant/{merchant_id}/status</div>
+      </div>
+      <p><strong>Purpose:</strong> Returns the enablement status of TDS Payment and TDS Filing for payouts.</p>
+      <p><strong>Called by:</strong> Compliance Engine 2.0, Dashboard, Internal Services</p>
+      <p><strong>Authentication:</strong> Internal service authentication (mTLS / service token)</p>
+
+      <h5>Path Parameters</h5>
+      <table>
+        <tr>
+          <th>Parameter</th>
+          <th>Type</th>
+          <th>Required</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td><code>merchant_id</code></td>
+          <td>string</td>
+          <td>Yes</td>
+          <td>Razorpay merchant identifier (e.g., <code>JInBTCIHDIQAOW</code>)</td>
+        </tr>
+      </table>
+
+      <h5>Response (200 OK)</h5>
+      <pre><code>{
+  "entity": "tds_enablement_status",
+  "merchant_id": "JInBTCIHDIQAOW",
+  "tds_payment_for_payouts": {
+    "enabled": true,
+    "enabled_at": 1704067200
+  },
+  "tds_filing_for_payouts": {
+    "enabled": true,
+    "enabled_at": 1704067200,
+    "quarter_start_date": 1704067200
+  }
+}</code></pre>
+
+      <h5>Response Fields</h5>
+      <table>
+        <tr>
+          <th>Field</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td><code>entity</code></td>
+          <td>string</td>
+          <td>Always <code>"tds_enablement_status"</code></td>
+        </tr>
+        <tr>
+          <td><code>merchant_id</code></td>
+          <td>string</td>
+          <td>Merchant identifier</td>
+        </tr>
+        <tr>
+          <th colspan="3" style="background: #e8f4fd; text-align: left;">tds_payment_for_payouts</th>
+        </tr>
+        <tr>
+          <td><code>enabled</code></td>
+          <td>boolean</td>
+          <td><code>true</code> if TDS payment is enabled for vendor payouts</td>
+        </tr>
+        <tr>
+          <td><code>enabled_at</code></td>
+          <td>integer</td>
+          <td>Unix timestamp when TDS payment was enabled (null if never enabled)</td>
+        </tr>
+        <tr>
+          <th colspan="3" style="background: #fff3e0; text-align: left;">tds_filing_for_payouts</th>
+        </tr>
+        <tr>
+          <td><code>enabled</code></td>
+          <td>boolean</td>
+          <td><code>true</code> if TDS filing is enabled for vendor payouts</td>
+        </tr>
+        <tr>
+          <td><code>enabled_at</code></td>
+          <td>integer</td>
+          <td>Unix timestamp when TDS filing was enabled (null if never enabled)</td>
+        </tr>
+        <tr>
+          <td><code>quarter_start_date</code></td>
+          <td>integer</td>
+          <td>Unix timestamp of the quarter from which filing started (for historical import)</td>
+        </tr>
+      </table>
+
+      <h5>Response When Both Disabled</h5>
+      <pre><code>{
+  "entity": "tds_enablement_status",
+  "merchant_id": "JInBTCIHDIQAOW",
+  "tds_payment_for_payouts": {
+    "enabled": false,
+    "enabled_at": null
+  },
+  "tds_filing_for_payouts": {
+    "enabled": false,
+    "enabled_at": null,
+    "quarter_start_date": null
+  }
+}</code></pre>
+
+      <h5>Error Responses</h5>
+      <table>
+        <tr>
+          <th>Status</th>
+          <th>Error Code</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td>400</td>
+          <td><code>BAD_REQUEST_INVALID_MERCHANT_ID</code></td>
+          <td>Invalid merchant_id format</td>
+        </tr>
+        <tr>
+          <td>404</td>
+          <td><code>BAD_REQUEST_MERCHANT_NOT_FOUND</code></td>
+          <td>Merchant does not exist</td>
+        </tr>
+        <tr>
+          <td>500</td>
+          <td><code>SERVER_ERROR</code></td>
+          <td>Internal server error</td>
+        </tr>
+      </table>
+
+      <h5>Implementation</h5>
+      <pre><code>// internal/app/tds/status.go
+
+// TDSEnablementStatus represents the API response
+type TDSEnablementStatus struct {
+    Entity                string                `json:"entity"`
+    MerchantID            string                `json:"merchant_id"`
+    TDSPaymentForPayouts  PaymentEnablementInfo `json:"tds_payment_for_payouts"`
+    TDSFilingForPayouts   FilingEnablementInfo  `json:"tds_filing_for_payouts"`
+}
+
+type PaymentEnablementInfo struct {
+    Enabled   bool   `json:"enabled"`
+    EnabledAt *int64 `json:"enabled_at"` // null if never enabled
+}
+
+type FilingEnablementInfo struct {
+    Enabled          bool   `json:"enabled"`
+    EnabledAt        *int64 `json:"enabled_at"`        // null if never enabled
+    QuarterStartDate *int64 `json:"quarter_start_date"` // null if not set
+}
+
+func (s *TDSService) GetEnablementStatus(ctx context.Context, merchantID string) (*TDSEnablementStatus, error) {
+    // Fetch TDS settings from Tax Details (API Settings)
+    taxDetails, err := s.apiClient.GetTaxDetails(ctx, merchantID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to fetch tax details: %w", err)
+    }
+    
+    return &TDSEnablementStatus{
+        Entity:     "tds_enablement_status",
+        MerchantID: merchantID,
+        TDSPaymentForPayouts: PaymentEnablementInfo{
+            Enabled:   taxDetails.TDSPaymentEnabled,
+            EnabledAt: taxDetails.TDSPaymentEnabledAt,
+        },
+        TDSFilingForPayouts: FilingEnablementInfo{
+            Enabled:          taxDetails.TDSFilingEnabled,
+            EnabledAt:        taxDetails.TDSFilingEnabledAt,
+            QuarterStartDate: taxDetails.FilingQuarterStart,
+        },
+    }, nil
+}</code></pre>
+
+      <h5>Use Cases</h5>
+      <table>
+        <tr>
+          <th>Consumer</th>
+          <th>Use Case</th>
+        </tr>
+        <tr>
+          <td><strong>Compliance Engine</strong></td>
+          <td>Check before processing TDS calculations - skip if not enabled</td>
+        </tr>
+        <tr>
+          <td><strong>Payouts Service</strong></td>
+          <td>Determine if TDS middleware should be invoked during payout creation</td>
+        </tr>
+        <tr>
+          <td><strong>Dashboard</strong></td>
+          <td>Show TDS status badges and enable/disable TDS-related UI sections</td>
+        </tr>
+        <tr>
+          <td><strong>Reporting Service</strong></td>
+          <td>Filter merchants for TDS compliance reports</td>
+        </tr>
+      </table>
+
       <h4>Audit Trail for Settings Changes</h4>
       <div class="callout callout-warning">
         <div class="callout-title">⚠️ Audit Requirement</div>
