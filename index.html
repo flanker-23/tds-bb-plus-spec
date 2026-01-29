@@ -455,120 +455,420 @@ TDS-Specific Fields within Tax Details:
       </table>
 
       <h4>Aggregator API Design</h4>
-      <pre><code>GET /internal/v1/tds/merchant/{merchant_id}/filing-info
+      <pre><code>GET /internal/v1/tds/merchant/{merchant_id}/details
 
-Purpose: Provides all merchant information required for TDS filing to Compliance Engine
+Purpose: Provides merchant & authorized personnel details for TDS payment/filing
 
 Data Sources:
-┌─────────────────────────────────────────────────────────────────┐
-│                    Merchant TDS Info Aggregator                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────────┐   ┌──────────────────┐                   │
-│  │ Business Profile │   │  Banking Service │                   │
-│  │  (API Settings)  │   │                  │                   │
-│  ├──────────────────┤   ├──────────────────┤                   │
-│  │ • Legal Name     │   │ • Account Number │                   │
-│  │ • PAN            │   │ • IFSC           │                   │
-│  │ • TAN            │   │ • Account ID     │                   │
-│  │ • Address        │   │                  │                   │
-│  │ • TDS Settings   │   │                  │                   │
-│  └────────┬─────────┘   └────────┬─────────┘                   │
-│           │                      │                             │
-│           └──────────┬───────────┘                             │
-│                      ▼                                         │
-│           ┌──────────────────┐                                 │
-│           │   Aggregator     │                                 │
-│           │     Service      │                                 │
-│           └────────┬─────────┘                                 │
-│                    │                                           │
-│                    ▼                                           │
-│           ┌──────────────────┐                                 │
-│           │ Unified Response │ ──────▶ Compliance Engine       │
-│           └──────────────────┘                                 │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘</code></pre>
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Merchant TDS Details Aggregator                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌────────────────────────┐     ┌────────────────────────┐              │
+│  │   Business Profile      │     │   Tax Details Settings │              │
+│  │   (API Settings)        │     │   (API Settings)       │              │
+│  ├────────────────────────┤     ├────────────────────────┤              │
+│  │ • Legal Entity Name     │     │ • TAN                  │              │
+│  │ • PAN                   │     │ • Branch               │              │
+│  │ • GSTIN                 │     │ • Responsible Person:  │              │
+│  │ • Registered Address:   │     │   - Designation        │              │
+│  │   - Street, Area        │     │   - Name, PAN          │              │
+│  │   - City, State         │     │   - Address            │              │
+│  │   - Postal Code         │     │   - Email, Mobile      │              │
+│  │ • Contact Email/Mobile  │     │                        │              │
+│  └───────────┬─────────────┘     └───────────┬────────────┘              │
+│              │                               │                           │
+│              └───────────┬───────────────────┘                           │
+│                          ▼                                               │
+│               ┌──────────────────────┐                                   │
+│               │  Aggregator Service  │                                   │
+│               │  (Payouts Service)   │                                   │
+│               └──────────┬───────────┘                                   │
+│                          │                                               │
+│                          ▼                                               │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │ Response                                                          │  │
+│  │ ├─ TDS_details_merchant (Deductor Org)                           │  │
+│  │ │   └─ name, tan, pan, branch, gstin, address, contact           │  │
+│  │ └─ TDS_details_responsible_person (Authorized Signatory)         │  │
+│  │     └─ designation, name, pan, address, contact                  │  │
+│  └─────────────────────────────┬─────────────────────────────────────┘  │
+│                                │                                         │
+│                                ▼                                         │
+│                     Compliance Engine 2.0                                │
+│                  (TDS Payment & Filing with Govt)                        │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘</code></pre>
 
-      <h4>Aggregator API Response</h4>
-      <pre><code>GET /internal/v1/tds/merchant/JInBTCIHDIQAOW/filing-info
+      <h4>API Contract</h4>
+      <div class="api-block">
+        <div class="api-method">GET</div>
+        <div class="api-endpoint">/internal/v1/tds/merchant/{merchant_id}/details</div>
+      </div>
+      <p><strong>Purpose:</strong> Returns merchant and authorized personnel details required by Compliance Engine for TDS payment and filing with government authorities.</p>
+      <p><strong>Called by:</strong> Compliance Engine 2.0 (internal service-to-service call)</p>
+      <p><strong>Authentication:</strong> Internal service authentication (mTLS / service token)</p>
 
-Response:
-{
-  "entity": "tds_merchant_info",
+      <h5>Path Parameters</h5>
+      <table>
+        <tr>
+          <th>Parameter</th>
+          <th>Type</th>
+          <th>Required</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td><code>merchant_id</code></td>
+          <td>string</td>
+          <td>Yes</td>
+          <td>Razorpay merchant identifier (e.g., <code>JInBTCIHDIQAOW</code>)</td>
+        </tr>
+      </table>
+
+      <h5>Response (200 OK)</h5>
+      <pre><code>{
+  "entity": "tds_merchant_details",
   "merchant_id": "JInBTCIHDIQAOW",
-  "deductor_details": {
-    "legal_entity_name": "Acme Corp Pvt Ltd",
-    "pan": "ABCDE1234F",
-    "tan": "MUMB12345A",
-    "registered_address": {
-      "line1": "123 Business Park",
-      "city": "Mumbai",
-      "state": "Maharashtra",
-      "pincode": "400001"
-    }
+  "TDS_details_merchant": {
+    "name": "Acme Pvt Ltd",
+    "tan": "AHMA00000C",
+    "pan": "AAACA1234Z",
+    "branch": "hq",
+    "gstin": "24AAACA1234Z1ZP",
+    "street": "A-901, Stark Tower",
+    "area": "Relief Road",
+    "city": "Ahmedabad",
+    "state": "GUJARAT",
+    "postal_code": "380001",
+    "email": "finance@acmepvtltd.com",
+    "mobile": "9876543210"
   },
-  "tds_settings": {
-    "tds_payment_enabled": true,
-    "tds_filing_enabled": true,
-    "filing_onboarding_date": 1704067200,
-    "quarter_start_date": 1704067200
-  },
-  "deduction_account": {
-    "account_id": "ba_JInBTDIHDIQAOW",
-    "account_number": "1234567890123456",
-    "ifsc": "HDFC0001234",
-    "account_type": "current"
+  "TDS_details_responsible_person": {
+    "designation": "Finance Manager",
+    "name": "Tony Stark",
+    "pan": "DKLPT3483J",
+    "street": "A-901, Stark Tower",
+    "area": "Relief Road",
+    "city": "Ahmedabad",
+    "state": "GUJARAT",
+    "postal_code": "380001",
+    "email": "tony.stark@acmepvtltd.com",
+    "mobile": "9876543210"
   },
   "fetched_at": 1706140800
 }</code></pre>
 
+      <h5>Response Fields</h5>
+      <table>
+        <tr>
+          <th colspan="4" style="background: #e8f4fd; text-align: left;">TDS_details_merchant (Deductor Organization)</th>
+        </tr>
+        <tr>
+          <th>Field</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Source</th>
+        </tr>
+        <tr>
+          <td><code>name</code></td>
+          <td>string</td>
+          <td>Legal entity name of the merchant</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>tan</code></td>
+          <td>string</td>
+          <td>Tax Deduction Account Number (10 chars)</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>pan</code></td>
+          <td>string</td>
+          <td>Permanent Account Number (10 chars)</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>branch</code></td>
+          <td>string</td>
+          <td>Branch identifier (e.g., "hq", "branch_1")</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>gstin</code></td>
+          <td>string</td>
+          <td>GST Identification Number (15 chars)</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>street</code></td>
+          <td>string</td>
+          <td>Street address line</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>area</code></td>
+          <td>string</td>
+          <td>Area/locality</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>city</code></td>
+          <td>string</td>
+          <td>City name</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>state</code></td>
+          <td>string</td>
+          <td>State name (uppercase)</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>postal_code</code></td>
+          <td>string</td>
+          <td>PIN code (6 digits)</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>email</code></td>
+          <td>string</td>
+          <td>Organization contact email</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>mobile</code></td>
+          <td>string</td>
+          <td>Organization contact mobile (10 digits)</td>
+          <td>Business Profile</td>
+        </tr>
+        <tr>
+          <th colspan="4" style="background: #fff3e0; text-align: left;">TDS_details_responsible_person (Authorized Signatory)</th>
+        </tr>
+        <tr>
+          <th>Field</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Source</th>
+        </tr>
+        <tr>
+          <td><code>designation</code></td>
+          <td>string</td>
+          <td>Role/designation of the responsible person</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>name</code></td>
+          <td>string</td>
+          <td>Full name of the authorized person</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>pan</code></td>
+          <td>string</td>
+          <td>PAN of the responsible person (10 chars)</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>street</code></td>
+          <td>string</td>
+          <td>Street address of the person</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>area</code></td>
+          <td>string</td>
+          <td>Area/locality</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>city</code></td>
+          <td>string</td>
+          <td>City name</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>state</code></td>
+          <td>string</td>
+          <td>State name (uppercase)</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>postal_code</code></td>
+          <td>string</td>
+          <td>PIN code (6 digits)</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>email</code></td>
+          <td>string</td>
+          <td>Email of the responsible person</td>
+          <td>Tax Details Settings</td>
+        </tr>
+        <tr>
+          <td><code>mobile</code></td>
+          <td>string</td>
+          <td>Mobile number (10 digits)</td>
+          <td>Tax Details Settings</td>
+        </tr>
+      </table>
+
+      <h5>Error Responses</h5>
+      <table>
+        <tr>
+          <th>Status</th>
+          <th>Error Code</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td>400</td>
+          <td><code>BAD_REQUEST_INVALID_MERCHANT_ID</code></td>
+          <td>Invalid merchant_id format</td>
+        </tr>
+        <tr>
+          <td>404</td>
+          <td><code>BAD_REQUEST_MERCHANT_NOT_FOUND</code></td>
+          <td>Merchant does not exist</td>
+        </tr>
+        <tr>
+          <td>404</td>
+          <td><code>BAD_REQUEST_TDS_NOT_ENABLED</code></td>
+          <td>TDS payment/filing not enabled for this merchant</td>
+        </tr>
+        <tr>
+          <td>422</td>
+          <td><code>BAD_REQUEST_INCOMPLETE_DETAILS</code></td>
+          <td>Required merchant or responsible person details are missing</td>
+        </tr>
+        <tr>
+          <td>500</td>
+          <td><code>SERVER_ERROR</code></td>
+          <td>Internal server error while fetching details</td>
+        </tr>
+      </table>
+
       <h4>Implementation in Payouts Service</h4>
       <pre><code>// internal/app/tds/aggregator.go
 
-type MerchantTDSInfo struct {
-    MerchantID       string                `json:"merchant_id"`
-    DeductorDetails  DeductorDetails       `json:"deductor_details"`
-    TDSSettings      TDSSettings           `json:"tds_settings"`
-    DeductionAccount DeductionAccountInfo  `json:"deduction_account"`
-    FetchedAt        int64                 `json:"fetched_at"`
+// Address represents a physical address
+type Address struct {
+    Street     string `json:"street"`
+    Area       string `json:"area"`
+    City       string `json:"city"`
+    State      string `json:"state"`
+    PostalCode string `json:"postal_code"`
 }
 
-func (s *TDSAggregatorService) GetMerchantFilingInfo(ctx context.Context, merchantID string) (*MerchantTDSInfo, error) {
-    // 1. Fetch Business Profile / Tax Details from API settings
+// TDSDetailsMerchant contains deductor organization details
+type TDSDetailsMerchant struct {
+    Name       string `json:"name"`
+    TAN        string `json:"tan"`
+    PAN        string `json:"pan"`
+    Branch     string `json:"branch"`
+    GSTIN      string `json:"gstin"`
+    Street     string `json:"street"`
+    Area       string `json:"area"`
+    City       string `json:"city"`
+    State      string `json:"state"`
+    PostalCode string `json:"postal_code"`
+    Email      string `json:"email"`
+    Mobile     string `json:"mobile"`
+}
+
+// TDSDetailsResponsiblePerson contains authorized signatory details
+type TDSDetailsResponsiblePerson struct {
+    Designation string `json:"designation"`
+    Name        string `json:"name"`
+    PAN         string `json:"pan"`
+    Street      string `json:"street"`
+    Area        string `json:"area"`
+    City        string `json:"city"`
+    State       string `json:"state"`
+    PostalCode  string `json:"postal_code"`
+    Email       string `json:"email"`
+    Mobile      string `json:"mobile"`
+}
+
+// MerchantTDSDetailsResponse is the API response
+type MerchantTDSDetailsResponse struct {
+    Entity                     string                      `json:"entity"`
+    MerchantID                 string                      `json:"merchant_id"`
+    TDSDetailsMerchant         TDSDetailsMerchant          `json:"TDS_details_merchant"`
+    TDSDetailsResponsiblePerson TDSDetailsResponsiblePerson `json:"TDS_details_responsible_person"`
+    FetchedAt                  int64                       `json:"fetched_at"`
+}
+
+func (s *TDSAggregatorService) GetMerchantTDSDetails(ctx context.Context, merchantID string) (*MerchantTDSDetailsResponse, error) {
+    // 1. Fetch Business Profile from API settings
     businessProfile, err := s.apiClient.GetBusinessProfile(ctx, merchantID)
     if err != nil {
         return nil, fmt.Errorf("failed to fetch business profile: %w", err)
     }
     
-    // 2. Fetch Banking Account Info
-    bankingInfo, err := s.bankingClient.GetMerchantAccount(ctx, merchantID)
+    // 2. Fetch Tax Details settings (includes responsible person info)
+    taxDetails, err := s.apiClient.GetTaxDetails(ctx, merchantID)
     if err != nil {
-        return nil, fmt.Errorf("failed to fetch banking info: %w", err)
+        return nil, fmt.Errorf("failed to fetch tax details: %w", err)
     }
     
-    // 3. Aggregate and return
-    return &MerchantTDSInfo{
+    // 3. Validate TDS is enabled
+    if !taxDetails.TDSPaymentEnabled && !taxDetails.TDSFilingEnabled {
+        return nil, ErrTDSNotEnabled
+    }
+    
+    // 4. Validate required fields are present
+    if err := s.validateMerchantDetails(businessProfile, taxDetails); err != nil {
+        return nil, fmt.Errorf("incomplete details: %w", err)
+    }
+    
+    // 5. Aggregate and return
+    return &MerchantTDSDetailsResponse{
+        Entity:     "tds_merchant_details",
         MerchantID: merchantID,
-        DeductorDetails: DeductorDetails{
-            LegalEntityName:   businessProfile.LegalEntityName,
-            PAN:               businessProfile.PAN,
-            TAN:               businessProfile.TaxDetails.TDSDeductorTAN,
-            RegisteredAddress: businessProfile.RegisteredAddress,
+        TDSDetailsMerchant: TDSDetailsMerchant{
+            Name:       businessProfile.LegalEntityName,
+            TAN:        taxDetails.TDSDeductorTAN,
+            PAN:        businessProfile.PAN,
+            Branch:     taxDetails.Branch,
+            GSTIN:      businessProfile.GSTIN,
+            Street:     businessProfile.Address.Street,
+            Area:       businessProfile.Address.Area,
+            City:       businessProfile.Address.City,
+            State:      strings.ToUpper(businessProfile.Address.State),
+            PostalCode: businessProfile.Address.PostalCode,
+            Email:      businessProfile.ContactEmail,
+            Mobile:     businessProfile.ContactMobile,
         },
-        TDSSettings: TDSSettings{
-            TDSPaymentEnabled:     businessProfile.TaxDetails.TDSPaymentEnabled,
-            TDSFilingEnabled:      businessProfile.TaxDetails.TDSFilingEnabled,
-            FilingOnboardingDate:  businessProfile.TaxDetails.TDSFilingOnboardingDate,
-            QuarterStartDate:      businessProfile.TaxDetails.FilingQuarterStart,
-        },
-        DeductionAccount: DeductionAccountInfo{
-            AccountID:     bankingInfo.AccountID,
-            AccountNumber: bankingInfo.AccountNumber,
-            IFSC:          bankingInfo.IFSC,
-            AccountType:   bankingInfo.AccountType,
+        TDSDetailsResponsiblePerson: TDSDetailsResponsiblePerson{
+            Designation: taxDetails.ResponsiblePerson.Designation,
+            Name:        taxDetails.ResponsiblePerson.Name,
+            PAN:         taxDetails.ResponsiblePerson.PAN,
+            Street:      taxDetails.ResponsiblePerson.Address.Street,
+            Area:        taxDetails.ResponsiblePerson.Address.Area,
+            City:        taxDetails.ResponsiblePerson.Address.City,
+            State:       strings.ToUpper(taxDetails.ResponsiblePerson.Address.State),
+            PostalCode:  taxDetails.ResponsiblePerson.Address.PostalCode,
+            Email:       taxDetails.ResponsiblePerson.Email,
+            Mobile:      taxDetails.ResponsiblePerson.Mobile,
         },
         FetchedAt: time.Now().Unix(),
     }, nil
+}
+
+func (s *TDSAggregatorService) validateMerchantDetails(bp *BusinessProfile, td *TaxDetails) error {
+    // Validate merchant details
+    if bp.LegalEntityName == "" || bp.PAN == "" {
+        return errors.New("merchant name or PAN missing")
+    }
+    if td.TDSDeductorTAN == "" {
+        return errors.New("TAN not configured")
+    }
+    
+    // Validate responsible person details
+    if td.ResponsiblePerson.Name == "" || td.ResponsiblePerson.PAN == "" {
+        return errors.New("responsible person name or PAN missing")
+    }
+    
+    return nil
 }</code></pre>
 
       <h4>Audit Trail for Settings Changes</h4>
