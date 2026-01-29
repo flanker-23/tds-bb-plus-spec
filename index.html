@@ -541,7 +541,8 @@ Data Sources:
     "state": "GUJARAT",
     "postal_code": "380001",
     "email": "finance@acmepvtltd.com",
-    "mobile": "9876543210"
+    "mobile": "9876543210",
+    "account_number": "50200012345678"
   },
   "TDS_details_responsible_person": {
     "designation": "Finance Manager",
@@ -640,6 +641,12 @@ Data Sources:
           <td>string</td>
           <td>Organization contact mobile (10 digits)</td>
           <td>Business Profile</td>
+        </tr>
+        <tr>
+          <td><code>account_number</code></td>
+          <td>string(48)</td>
+          <td>Bank account number for TDS deduction (max 48 chars)</td>
+          <td>Banking Service</td>
         </tr>
         <tr>
           <th colspan="4" style="background: #fff3e0; text-align: left;">TDS_details_responsible_person (Authorized Signatory)</th>
@@ -760,18 +767,19 @@ type Address struct {
 
 // TDSDetailsMerchant contains deductor organization details
 type TDSDetailsMerchant struct {
-    Name       string `json:"name"`
-    TAN        string `json:"tan"`
-    PAN        string `json:"pan"`
-    Branch     string `json:"branch"`
-    GSTIN      string `json:"gstin"`
-    Street     string `json:"street"`
-    Area       string `json:"area"`
-    City       string `json:"city"`
-    State      string `json:"state"`
-    PostalCode string `json:"postal_code"`
-    Email      string `json:"email"`
-    Mobile     string `json:"mobile"`
+    Name          string `json:"name"`
+    TAN           string `json:"tan"`
+    PAN           string `json:"pan"`
+    Branch        string `json:"branch"`
+    GSTIN         string `json:"gstin"`
+    Street        string `json:"street"`
+    Area          string `json:"area"`
+    City          string `json:"city"`
+    State         string `json:"state"`
+    PostalCode    string `json:"postal_code"`
+    Email         string `json:"email"`
+    Mobile        string `json:"mobile"`
+    AccountNumber string `json:"account_number"` // varchar(48) - bank account for TDS deduction
 }
 
 // TDSDetailsResponsiblePerson contains authorized signatory details
@@ -810,33 +818,40 @@ func (s *TDSAggregatorService) GetMerchantTDSDetails(ctx context.Context, mercha
         return nil, fmt.Errorf("failed to fetch tax details: %w", err)
     }
     
-    // 3. Validate TDS is enabled
+    // 3. Fetch Banking Account Info for account_number
+    bankingInfo, err := s.bankingClient.GetMerchantAccount(ctx, merchantID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to fetch banking info: %w", err)
+    }
+    
+    // 4. Validate TDS is enabled
     if !taxDetails.TDSPaymentEnabled && !taxDetails.TDSFilingEnabled {
         return nil, ErrTDSNotEnabled
     }
     
-    // 4. Validate required fields are present
+    // 5. Validate required fields are present
     if err := s.validateMerchantDetails(businessProfile, taxDetails); err != nil {
         return nil, fmt.Errorf("incomplete details: %w", err)
     }
     
-    // 5. Aggregate and return
+    // 6. Aggregate and return
     return &MerchantTDSDetailsResponse{
         Entity:     "tds_merchant_details",
         MerchantID: merchantID,
         TDSDetailsMerchant: TDSDetailsMerchant{
-            Name:       businessProfile.LegalEntityName,
-            TAN:        taxDetails.TDSDeductorTAN,
-            PAN:        businessProfile.PAN,
-            Branch:     taxDetails.Branch,
-            GSTIN:      businessProfile.GSTIN,
-            Street:     businessProfile.Address.Street,
-            Area:       businessProfile.Address.Area,
-            City:       businessProfile.Address.City,
-            State:      strings.ToUpper(businessProfile.Address.State),
-            PostalCode: businessProfile.Address.PostalCode,
-            Email:      businessProfile.ContactEmail,
-            Mobile:     businessProfile.ContactMobile,
+            Name:          businessProfile.LegalEntityName,
+            TAN:           taxDetails.TDSDeductorTAN,
+            PAN:           businessProfile.PAN,
+            Branch:        taxDetails.Branch,
+            GSTIN:         businessProfile.GSTIN,
+            Street:        businessProfile.Address.Street,
+            Area:          businessProfile.Address.Area,
+            City:          businessProfile.Address.City,
+            State:         strings.ToUpper(businessProfile.Address.State),
+            PostalCode:    businessProfile.Address.PostalCode,
+            Email:         businessProfile.ContactEmail,
+            Mobile:        businessProfile.ContactMobile,
+            AccountNumber: bankingInfo.AccountNumber, // varchar(48)
         },
         TDSDetailsResponsiblePerson: TDSDetailsResponsiblePerson{
             Designation: taxDetails.ResponsiblePerson.Designation,
